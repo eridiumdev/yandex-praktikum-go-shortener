@@ -12,7 +12,7 @@ import (
 )
 
 type ShortenerUC struct {
-	baseUrl       string
+	baseURL       string
 	defaultLength int
 	alphabet      []rune
 
@@ -34,7 +34,7 @@ func NewShortener(cfg config.Shortener, repo repository.ShortlinkRepo) *Shortene
 	}
 
 	return &ShortenerUC{
-		baseUrl:       cfg.BaseURL,
+		baseURL:       cfg.BaseURL,
 		defaultLength: cfg.DefaultLength,
 		alphabet:      alphabet,
 		repo:          repo,
@@ -66,7 +66,7 @@ func (uc *ShortenerUC) CreateShortlink(ctx context.Context, length int, url stri
 	link := &entity.Shortlink{
 		ID:    id,
 		Long:  url,
-		Short: uc.baseUrl + id,
+		Short: uc.baseURL + id,
 	}
 
 	log.Printf("URL shortened: %s -> %s", link.Long, link.Short)
