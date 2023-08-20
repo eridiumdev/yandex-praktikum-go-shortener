@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -51,22 +52,19 @@ func TestCreateShortlink(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewHandler()
+			srv := fiber.New()
 
 			repo := repository.NewInMemShortlinkRepo()
 			uc := usecase.NewShortener(config.Shortener{
 				BaseUrl:       "http://127.0.0.1",
 				DefaultLength: 5,
 			}, repo)
-			NewShortenerController(h.Router, uc)
+			NewShortenerController(srv, uc)
 
 			reqBody := bytes.NewBufferString(tt.body)
-
-			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, "/", reqBody)
-			h.ServeHTTP(w, r)
 
-			resp := w.Result()
+			resp, err := srv.Test(r)
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
@@ -139,19 +137,18 @@ func TestGetShortlink(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewHandler()
+			srv := fiber.New()
 
 			uc := usecase.NewShortener(config.Shortener{
 				BaseUrl:       "http://127.0.0.1",
 				DefaultLength: 5,
 			}, repo)
-			NewShortenerController(h.Router, uc)
+			NewShortenerController(srv, uc)
 
-			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodGet, "/"+tt.id, nil)
-			h.ServeHTTP(w, r)
 
-			resp := w.Result()
+			resp, err := srv.Test(r)
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
 

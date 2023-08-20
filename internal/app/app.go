@@ -6,6 +6,8 @@ import (
 	"log"
 	nethttp "net/http"
 
+	"github.com/gofiber/fiber/v2"
+
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/config"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/controller/http"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository"
@@ -13,35 +15,33 @@ import (
 )
 
 type App struct {
-	server *nethttp.Server
+	server     *fiber.App
+	serverAddr string
 }
 
 func NewApp(ctx context.Context, cfg *config.Config) *App {
 	app := &App{}
 
-	handler := http.NewHandler()
-	server := &nethttp.Server{
-		Addr: fmt.Sprintf(":%d", cfg.Server.Port),
-	}
-	server.Handler = handler
+	server := fiber.New()
 	app.server = server
+	app.serverAddr = fmt.Sprintf(":%d", cfg.Server.Port)
 
 	shortlinkRepo := repository.NewInMemShortlinkRepo()
 	shortenerUC := usecase.NewShortener(cfg.Shortener, shortlinkRepo)
 
-	http.NewShortenerController(handler.Router, shortenerUC)
+	http.NewShortenerController(server, shortenerUC)
 
 	return app
 }
 
 func (a *App) Run(ctx context.Context) error {
-	log.Printf("Listening on %s", a.server.Addr)
-	if err := a.server.ListenAndServe(); err != nil && err != nethttp.ErrServerClosed {
+	log.Printf("Listening on %s", a.serverAddr)
+	if err := a.server.Listen(a.serverAddr); err != nil && err != nethttp.ErrServerClosed {
 		return err
 	}
 	return nil
 }
 
 func (a *App) Stop(ctx context.Context) error {
-	return a.server.Shutdown(ctx)
+	return a.server.Shutdown()
 }
