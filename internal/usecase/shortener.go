@@ -34,7 +34,7 @@ func NewShortener(cfg config.Shortener, repo repository.ShortlinkRepo) *Shortene
 	}
 
 	return &ShortenerUC{
-		baseUrl:       cfg.BaseUrl,
+		baseUrl:       cfg.BaseURL,
 		defaultLength: cfg.DefaultLength,
 		alphabet:      alphabet,
 		repo:          repo,

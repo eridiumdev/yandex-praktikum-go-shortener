@@ -56,7 +56,7 @@ func TestCreateShortlink(t *testing.T) {
 
 			repo := repository.NewInMemShortlinkRepo()
 			uc := usecase.NewShortener(config.Shortener{
-				BaseUrl:       "http://127.0.0.1",
+				BaseURL:       "http://127.0.0.1",
 				DefaultLength: 5,
 			}, repo)
 			NewShortenerController(srv, uc)
@@ -65,6 +65,8 @@ func TestCreateShortlink(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/", reqBody)
 
 			resp, err := srv.Test(r)
+			require.NoError(t, err)
+
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
@@ -140,7 +142,7 @@ func TestGetShortlink(t *testing.T) {
 			srv := fiber.New()
 
 			uc := usecase.NewShortener(config.Shortener{
-				BaseUrl:       "http://127.0.0.1",
+				BaseURL:       "http://127.0.0.1",
 				DefaultLength: 5,
 			}, repo)
 			NewShortenerController(srv, uc)
@@ -149,6 +151,7 @@ func TestGetShortlink(t *testing.T) {
 
 			resp, err := srv.Test(r)
 			require.NoError(t, err)
+			defer resp.Body.Close()
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
 

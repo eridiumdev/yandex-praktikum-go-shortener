@@ -23,7 +23,7 @@ func main() {
 			Port: 8080,
 		},
 		Shortener: config.Shortener{
-			BaseUrl:       "http://localhost:8080/",
+			BaseURL:       "http://localhost:8080/",
 			DefaultLength: 5,
 		},
 	}
