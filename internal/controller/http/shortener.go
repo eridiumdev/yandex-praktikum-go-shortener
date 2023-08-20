@@ -1,81 +1,79 @@
 package http
 
 import (
-	"io"
 	"log"
 	"net/http"
 	"net/url"
 
-	"github.com/eridiumdev/yandex-praktikum-go-shortener/pkg/httpserver"
+	"github.com/gofiber/fiber/v2"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/usecase"
 )
 
-type shortenerController struct {
+type ShortenerController struct {
 	shortener usecase.Shortener
 }
 
-func NewShortenerController(router *httpserver.Router, shortener usecase.Shortener) *shortenerController {
-	c := &shortenerController{
+func NewShortenerController(router *fiber.App, shortener usecase.Shortener) *ShortenerController {
+	c := &ShortenerController{
 		shortener: shortener,
 	}
 
-	router.HandleFunc("/", httpserver.POST(c.createShortlink))
-	router.HandleFunc("/{id}", httpserver.GET(c.getShortlink))
+	router.Post("/", c.createShortlink)
+	router.Get("/:id", c.getShortlink)
 
 	return c
 }
 
-func (c *shortenerController) createShortlink(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+func (ctrl *ShortenerController) createShortlink(c *fiber.Ctx) error {
+	ctx := c.Context()
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Printf("Error reading request body: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	body := c.Body()
 
 	uri, err := url.Parse(string(body))
 	if err != nil {
 		log.Printf("Error parsing URL: %s", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
+		c.Status(http.StatusBadRequest)
+		return nil
 	}
 	if uri.Scheme == "" || uri.Host == "" {
 		log.Printf("Provided URL is incomplete (%s)", string(body))
-		w.WriteHeader(http.StatusBadRequest)
-		return
+		c.Status(http.StatusBadRequest)
+		return nil
 	}
 
-	link, err := c.shortener.CreateShortlink(ctx, 0, uri.String())
+	link, err := ctrl.shortener.CreateShortlink(ctx, 0, uri.String())
 	if err != nil {
 		log.Printf("Error creating shortlink: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-		return
+		c.Status(http.StatusInternalServerError)
+		return c.SendString(err.Error())
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(link.Short))
+	c.Status(http.StatusCreated)
+	return c.SendString(link.Short)
 }
 
-func (c *shortenerController) getShortlink(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	id := r.Header.Get("X-Wildcard-id")
+func (ctrl *ShortenerController) getShortlink(c *fiber.Ctx) error {
+	ctx := c.Context()
 
-	link, err := c.shortener.GetShortlink(ctx, id)
+	id := c.Params("id")
+	if id == "" {
+		c.Status(http.StatusBadRequest)
+		return nil
+	}
+
+	link, err := ctrl.shortener.GetShortlink(ctx, id)
 	if err != nil {
 		log.Printf("Error getting shortlink: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-		return
+		c.Status(http.StatusInternalServerError)
+		return c.SendString(err.Error())
 	}
 	if link == nil {
-		w.WriteHeader(http.StatusNotFound)
-		return
+		c.Status(http.StatusNotFound)
+		return nil
 	}
 
-	w.Header().Set("Location", link.Long)
-	w.WriteHeader(http.StatusTemporaryRedirect)
+	c.Set("Location", link.Long)
+	c.Status(http.StatusTemporaryRedirect)
+	return nil
 }

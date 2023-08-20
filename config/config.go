@@ -15,7 +15,7 @@ type (
 		Port int
 	}
 	Shortener struct {
-		BaseUrl       string
+		BaseURL       string
 		DefaultLength int
 	}
 )
