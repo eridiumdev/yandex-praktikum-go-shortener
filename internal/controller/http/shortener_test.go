@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -79,6 +80,97 @@ func TestCreateShortlink(t *testing.T) {
 				assert.NotEmpty(t, body)
 
 				_, err := url.Parse(string(body))
+				require.NoErrorf(t, err, "url must parse")
+			}
+		})
+	}
+}
+
+func TestShortenLink(t *testing.T) {
+	type want struct {
+		code int
+		err  string
+	}
+	tests := []struct {
+		name string
+		req  string
+		want want
+	}{
+		{
+			name: "empty request",
+			req:  ``,
+			want: want{
+				code: 400,
+			},
+		},
+		{
+			name: "empty url",
+			req:  `{"url": ""}`,
+			want: want{
+				code: 400,
+				err:  usecase.ErrIncompleteURL.Error(),
+			},
+		},
+		{
+			name: "bad url",
+			req:  `{"url": ":asd&&!?"}`,
+			want: want{
+				code: 400,
+				err:  usecase.ErrInvalidURL.Error(),
+			},
+		},
+		{
+			name: "incomplete url",
+			req:  `{"url": "example.org"}`,
+			want: want{
+				code: 400,
+				err:  usecase.ErrIncompleteURL.Error(),
+			},
+		},
+		{
+			name: "ok",
+			req:  `{"url": "https://example.org"}`,
+			want: want{
+				code: 201,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := fiber.New()
+
+			repo := repository.NewInMemShortlinkRepo()
+			uc := usecase.NewShortener(config.Shortener{
+				BaseURL:       "http://127.0.0.1",
+				DefaultLength: 5,
+			}, repo)
+			NewShortenerController(srv, uc)
+
+			reqBody := bytes.NewBufferString(tt.req)
+			r := httptest.NewRequest(http.MethodPost, "/api/shorten", reqBody)
+			r.Header.Set("Content-Type", "application/json")
+
+			resp, err := srv.Test(r)
+			require.NoError(t, err)
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			err = resp.Body.Close()
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want.code, resp.StatusCode)
+
+			if tt.want.err != "" {
+				assert.Equal(t, tt.want.err, string(body))
+			} else if tt.want.code == 201 {
+				var respJSON shortenLinkResponse
+				err := json.Unmarshal(body, &respJSON)
+				require.NoError(t, err, "response should resemble a shortenLinkResponse")
+
+				assert.NotEmpty(t, respJSON.Result, "response should contain a url")
+
+				_, err = url.Parse(respJSON.Result)
 				require.NoErrorf(t, err, "url must parse")
 			}
 		})

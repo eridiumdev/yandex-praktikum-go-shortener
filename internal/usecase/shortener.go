@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"math/rand"
+	"net/url"
 	"time"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/config"
@@ -42,7 +43,17 @@ func NewShortener(cfg config.Shortener, repo repository.ShortlinkRepo) *Shortene
 	}
 }
 
-func (uc *ShortenerUC) CreateShortlink(ctx context.Context, length int, url string) (*entity.Shortlink, error) {
+func (uc *ShortenerUC) CreateShortlink(ctx context.Context, length int, longURL string) (*entity.Shortlink, error) {
+	uri, err := url.Parse(longURL)
+	if err != nil {
+		log.Printf("Error parsing URL: %s", err)
+		return nil, ErrInvalidURL
+	}
+	if uri.Scheme == "" || uri.Host == "" {
+		log.Printf("Provided URL is incomplete (%s)", longURL)
+		return nil, ErrIncompleteURL
+	}
+
 	if length <= 0 {
 		length = uc.defaultLength
 	}
@@ -65,7 +76,7 @@ func (uc *ShortenerUC) CreateShortlink(ctx context.Context, length int, url stri
 
 	link := &entity.Shortlink{
 		ID:    id,
-		Long:  url,
+		Long:  longURL,
 		Short: uc.baseURL + id,
 	}
 
