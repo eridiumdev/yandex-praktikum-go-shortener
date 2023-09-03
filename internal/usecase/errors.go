@@ -2,4 +2,8 @@ package usecase
 
 import "errors"
 
-var ErrIDConflict = errors.New("failed to generate shortlink because of ID conflict")
+var (
+	ErrInvalidURL    = errors.New("provided URL is invalid")
+	ErrIncompleteURL = errors.New("provided URL is incomplete (e.g. missing scheme or host)")
+	ErrIDConflict    = errors.New("shortlink ID conflict")
+)
