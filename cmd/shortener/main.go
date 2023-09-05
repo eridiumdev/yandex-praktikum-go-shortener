@@ -15,17 +15,9 @@ import (
 func main() {
 	ctx := context.Background()
 
-	cfg := &config.Config{
-		App: config.App{
-			ShutdownTimeout: time.Second * 3,
-		},
-		Server: config.Server{
-			Port: 8080,
-		},
-		Shortener: config.Shortener{
-			BaseURL:       "http://localhost:8080/",
-			DefaultLength: 5,
-		},
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Error loading config: %s", err)
 	}
 
 	a := app.NewApp(ctx, cfg)
@@ -48,7 +40,7 @@ func main() {
 	})
 
 	log.Printf("Stopping app...")
-	err := a.Stop(ctx)
+	err = a.Stop(ctx)
 	if err != nil {
 		log.Fatalf("Error stopping app: %s", err)
 	}

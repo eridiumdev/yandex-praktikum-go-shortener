@@ -11,8 +11,9 @@ unit: ### Run unit tests
 .PHONY: unit
 
 test: ### Run yandex tests
-	go build -o shortener ./cmd/shortener/*.go &&\
-	./shortenertest -test.v -test.run=^TestIteration4$$ -binary-path=./shortener -source-path=. -test.v
+	go build -o cmd/shortener/shortener ./cmd/shortener/*.go &&\
+	iter=`git branch --show-current | cut -c 5-` &&\
+	./shortenertest -test.v -test.run=^TestIteration$$iter$$ -binary-path=cmd/shortener/shortener -source-path=. -test.v
 .PHONY: test
 
 lint: ### Run linters
