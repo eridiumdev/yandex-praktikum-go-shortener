@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/caarlos0/env/v6 v6.10.1
 	github.com/gofiber/fiber/v2 v2.48.0
+	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.4
 )
 

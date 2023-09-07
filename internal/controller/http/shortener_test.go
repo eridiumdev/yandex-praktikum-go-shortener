@@ -55,7 +55,7 @@ func TestCreateShortlink(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := fiber.New()
 
-			repo := repository.NewInMemShortlinkRepo()
+			repo := repository.NewInMemShortlinkRepo(nil)
 			uc := usecase.NewShortener(config.Shortener{
 				BaseURL:       "http://127.0.0.1",
 				DefaultLength: 5,
@@ -139,7 +139,7 @@ func TestShortenLink(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := fiber.New()
 
-			repo := repository.NewInMemShortlinkRepo()
+			repo := repository.NewInMemShortlinkRepo(nil)
 			uc := usecase.NewShortener(config.Shortener{
 				BaseURL:       "http://127.0.0.1",
 				DefaultLength: 5,
@@ -179,7 +179,7 @@ func TestShortenLink(t *testing.T) {
 
 func TestGetShortlink(t *testing.T) {
 	ctx := context.Background()
-	repo := repository.NewInMemShortlinkRepo()
+	repo := repository.NewInMemShortlinkRepo(nil)
 
 	for _, link := range []entity.Shortlink{
 		{

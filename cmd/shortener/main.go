@@ -20,7 +20,10 @@ func main() {
 		log.Fatalf("Error loading config: %s", err)
 	}
 
-	a := app.NewApp(ctx, cfg)
+	a, err := app.NewApp(ctx, cfg)
+	if err != nil {
+		log.Printf("Error initing app: %s", err)
+	}
 
 	go func() {
 		log.Printf("Starting app...")
