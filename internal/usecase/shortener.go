@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/config"
@@ -35,7 +36,7 @@ func NewShortener(cfg config.Shortener, repo repository.ShortlinkRepo) *Shortene
 	}
 
 	return &ShortenerUC{
-		baseURL:       cfg.BaseURL,
+		baseURL:       strings.TrimRight(cfg.BaseURL, "/") + "/",
 		defaultLength: cfg.DefaultLength,
 		alphabet:      alphabet,
 		repo:          repo,

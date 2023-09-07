@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"log"
 	nethttp "net/http"
 
@@ -24,7 +23,7 @@ func NewApp(ctx context.Context, cfg *config.Config) *App {
 
 	server := fiber.New()
 	app.server = server
-	app.serverAddr = fmt.Sprintf(":%d", cfg.Server.Port)
+	app.serverAddr = cfg.Server.Addr
 
 	shortlinkRepo := repository.NewInMemShortlinkRepo()
 	shortenerUC := usecase.NewShortener(cfg.Shortener, shortlinkRepo)

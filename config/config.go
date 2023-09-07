@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/caarlos0/env/v6"
+)
 
 type (
 	Config struct {
@@ -12,10 +16,25 @@ type (
 		ShutdownTimeout time.Duration
 	}
 	Server struct {
-		Port int
+		Addr string `env:"SERVER_ADDRESS" envDefault:":8080"`
 	}
 	Shortener struct {
-		BaseURL       string
+		BaseURL       string `env:"BASE_URL" envDefault:"http://localhost:8080"`
 		DefaultLength int
 	}
 )
+
+func Load() (*Config, error) {
+	cfg := &Config{
+		App: App{
+			ShutdownTimeout: time.Second * 3,
+		},
+		Shortener: Shortener{
+			DefaultLength: 5,
+		},
+	}
+
+	err := env.Parse(cfg)
+
+	return cfg, err
+}
