@@ -6,31 +6,46 @@ import (
 	nethttp "net/http"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/pkg/errors"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/config"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/controller/http"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/storage"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/usecase"
 )
 
 type App struct {
 	server     *fiber.App
 	serverAddr string
+
+	repo repository.ShortlinkRepo
 }
 
-func NewApp(ctx context.Context, cfg *config.Config) *App {
+func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 	app := &App{}
 
 	server := fiber.New()
 	app.server = server
 	app.serverAddr = cfg.Server.Addr
 
-	shortlinkRepo := repository.NewInMemShortlinkRepo()
-	shortenerUC := usecase.NewShortener(cfg.Shortener, shortlinkRepo)
+	backup, err := storage.NewFileStorage(cfg.Storage.Filepath)
+	if err != nil {
+		return nil, errors.Wrap(err, "error initing backup storage")
+	}
 
+	shortlinkRepo := repository.NewInMemShortlinkRepo(backup)
+	app.repo = shortlinkRepo
+
+	err = shortlinkRepo.Restore(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error restoring from backup")
+	}
+
+	shortenerUC := usecase.NewShortener(cfg.Shortener, shortlinkRepo)
 	http.NewShortenerController(server, shortenerUC)
 
-	return app
+	return app, nil
 }
 
 func (a *App) Run(ctx context.Context) error {
@@ -42,5 +57,20 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 func (a *App) Stop(ctx context.Context) error {
-	return a.server.Shutdown()
+	err := a.repo.Backup(ctx)
+	if err != nil {
+		return errors.Wrap(err, "error saving links to backup")
+	}
+
+	err = a.repo.Close(ctx)
+	if err != nil {
+		return errors.Wrap(err, "error closing repo")
+	}
+
+	err = a.server.Shutdown()
+	if err != nil {
+		return errors.Wrap(err, "error shutting down server")
+	}
+
+	return nil
 }
