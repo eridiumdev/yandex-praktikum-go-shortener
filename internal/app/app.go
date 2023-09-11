@@ -6,6 +6,7 @@ import (
 	nethttp "net/http"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/pkg/errors"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/config"
@@ -26,6 +27,10 @@ func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 	app := &App{}
 
 	server := fiber.New()
+	server.Use(compress.New(compress.Config{
+		Level: compress.LevelBestSpeed,
+	}))
+
 	app.server = server
 	app.serverAddr = cfg.Server.Addr
 
