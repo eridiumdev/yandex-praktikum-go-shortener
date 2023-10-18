@@ -16,6 +16,7 @@ type (
 	}
 	App struct {
 		ShutdownTimeout time.Duration
+		AuthSecret      string
 	}
 	Server struct {
 		Addr string `env:"SERVER_ADDRESS"`
@@ -33,6 +34,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		App: App{
 			ShutdownTimeout: time.Second * 3,
+			AuthSecret:      "U2ahPqQAQiWUxfdT7SDBNFrgcGFkJ6Tq",
 		},
 		Shortener: Shortener{
 			DefaultLength: 5,

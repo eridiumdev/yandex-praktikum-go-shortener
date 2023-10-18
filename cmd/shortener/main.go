@@ -22,7 +22,7 @@ func main() {
 
 	a, err := app.NewApp(ctx, cfg)
 	if err != nil {
-		log.Printf("Error initing app: %s", err)
+		log.Fatalf("Error initing app: %s", err)
 	}
 
 	go func() {
