@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -33,7 +34,7 @@ func CookieAuth(cfg CookieAuthConfig) (fiber.Handler, error) {
 		if cookie != "" {
 			token, err = cfg.Cipher.Decrypt(c.Context(), cookie)
 			if err != nil {
-				return errors.Wrapf(err, "[cookie-auth] decrypt token")
+				// Ignore the error and generate new token
 			}
 		}
 		if token == nil {
@@ -45,7 +46,7 @@ func CookieAuth(cfg CookieAuthConfig) (fiber.Handler, error) {
 
 		// Add token to request context
 		c.SetUserContext(
-			context.WithValue(c.UserContext(), "auth-token", token))
+			context.WithValue(c.UserContext(), entity.AuthTokenCtxKey, token))
 
 		// Go to next middleware/handler
 		if err := c.Next(); err != nil {
@@ -79,6 +80,6 @@ func generateToken() (*entity.AuthToken, error) {
 	}
 
 	return &entity.AuthToken{
-		UserID: userID,
+		UserID: hex.EncodeToString(userID),
 	}, nil
 }

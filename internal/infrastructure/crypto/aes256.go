@@ -48,7 +48,7 @@ func (ae *AES256) Encrypt(ctx context.Context, token *entity.AuthToken) (string,
 
 	// Sign the token
 	// Note the nonce in the beginning - we will use it during decryption
-	signedToken := ae.cipher.Seal(nonce, nonce, token.UserID, nil)
+	signedToken := ae.cipher.Seal(nonce, nonce, []byte(token.UserID), nil)
 
 	// Return as base64 string
 	return base64.StdEncoding.EncodeToString(signedToken), nil
@@ -71,6 +71,6 @@ func (ae *AES256) Decrypt(ctx context.Context, encrypted string) (*entity.AuthTo
 	}
 
 	return &entity.AuthToken{
-		UserID: original,
+		UserID: string(original),
 	}, nil
 }

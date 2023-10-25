@@ -1,11 +1,7 @@
 package entity
 
-import "encoding/hex"
+const AuthTokenCtxKey = "auth-token"
 
 type AuthToken struct {
-	UserID []byte
-}
-
-func (t *AuthToken) String() string {
-	return hex.EncodeToString(t.UserID)
+	UserID string
 }
