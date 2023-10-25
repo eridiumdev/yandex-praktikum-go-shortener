@@ -98,10 +98,14 @@ func (uc *ShortenerUC) generateLinkID(length int) string {
 	return id
 }
 
-func (uc *ShortenerUC) GetShortlink(ctx context.Context, userID, linkID string) (*entity.Shortlink, error) {
+func (uc *ShortenerUC) GetShortlink(ctx context.Context, linkID string) (*entity.Shortlink, error) {
+	return uc.repo.FindShortlink(ctx, "", linkID)
+}
+
+func (uc *ShortenerUC) GetUserShortlink(ctx context.Context, userID, linkID string) (*entity.Shortlink, error) {
 	return uc.repo.FindShortlink(ctx, userID, linkID)
 }
 
-func (uc *ShortenerUC) ListShortlinks(ctx context.Context, userID string) ([]*entity.Shortlink, error) {
+func (uc *ShortenerUC) ListUserShortlinks(ctx context.Context, userID string) ([]*entity.Shortlink, error) {
 	return uc.repo.GetShortlinks(ctx, userID)
 }

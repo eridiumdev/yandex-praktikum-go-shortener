@@ -7,6 +7,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/pkg/errors"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/config"
@@ -29,6 +30,9 @@ func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 	app := &App{}
 
 	server := fiber.New()
+	server.Use(logger.New(logger.Config{
+		Format: "[${time}] ${method} ${path} |req: ${body} |resp: ${status} ${resBody}\n",
+	}))
 	server.Use(compress.New(compress.Config{
 		Level: compress.LevelBestSpeed,
 	}))

@@ -104,19 +104,13 @@ func (ctrl *ShortenerController) shortenLink(c *fiber.Ctx) error {
 func (ctrl *ShortenerController) getShortlink(c *fiber.Ctx) error {
 	ctx := c.Context()
 
-	userID, err := ctrl.userID(c.UserContext())
-	if err != nil {
-		c.Status(http.StatusUnauthorized)
-		return nil
-	}
-
 	linkID := c.Params("id")
 	if linkID == "" {
 		c.Status(http.StatusBadRequest)
 		return nil
 	}
 
-	link, err := ctrl.shortener.GetShortlink(ctx, userID, linkID)
+	link, err := ctrl.shortener.GetShortlink(ctx, linkID)
 	if err != nil {
 		log.Printf("Error getting shortlink: %s", err)
 		c.Status(ctrl.errorStatus(err))
@@ -149,7 +143,7 @@ func (ctrl *ShortenerController) listShortlinks(c *fiber.Ctx) error {
 		return nil
 	}
 
-	links, err := ctrl.shortener.ListShortlinks(ctx, userID)
+	links, err := ctrl.shortener.ListUserShortlinks(ctx, userID)
 	if err != nil {
 		log.Printf("Error listing shortlinks: %s", err)
 		c.Status(ctrl.errorStatus(err))

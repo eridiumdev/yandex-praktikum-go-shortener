@@ -42,6 +42,16 @@ func (r *InMemShortlinkRepo) FindShortlink(ctx context.Context, userID, linkID s
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
+	// If userID is not specified, search all links
+	if userID == "" {
+		for _, userLinks := range r.links {
+			if link, ok := userLinks[linkID]; ok {
+				return link, nil
+			}
+		}
+		return nil, nil
+	}
+
 	if _, ok := r.links[userID]; !ok {
 		return nil, nil
 	}
