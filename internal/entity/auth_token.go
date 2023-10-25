@@ -1,7 +1,10 @@
 package entity
 
-const AuthTokenCtxKey = "auth-token"
+const AuthTokenCtxKey = AuthTokenKey("auth-token")
 
-type AuthToken struct {
-	UserID string
-}
+type (
+	AuthToken struct {
+		UserID string
+	}
+	AuthTokenKey string
+)

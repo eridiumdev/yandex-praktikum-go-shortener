@@ -32,10 +32,8 @@ func CookieAuth(cfg CookieAuthConfig) (fiber.Handler, error) {
 		// Pre-processing
 		cookie := c.Cookies(CookieAuthName)
 		if cookie != "" {
-			token, err = cfg.Cipher.Decrypt(c.Context(), cookie)
-			if err != nil {
-				// Ignore the error and generate new token
-			}
+			// Ignore the error and generate new token
+			token, _ = cfg.Cipher.Decrypt(c.Context(), cookie)
 		}
 		if token == nil {
 			token, err = generateToken()
