@@ -7,10 +7,13 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/pkg/errors"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/config"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/controller/http"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/controller/http/middleware"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/crypto"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/storage"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/usecase"
@@ -27,16 +30,33 @@ func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 	app := &App{}
 
 	server := fiber.New()
+	server.Use(logger.New(logger.Config{
+		Format: "[${time}] ${method} ${path} |req: ${body} |resp: ${status} ${resBody}\n",
+	}))
 	server.Use(compress.New(compress.Config{
 		Level: compress.LevelBestSpeed,
 	}))
+
+	cipher, err := crypto.NewAES256(cfg.App.AuthSecret)
+	if err != nil {
+		return nil, errors.Wrap(err, "initing crypto cipher")
+	}
+
+	authMiddleware, err := middleware.CookieAuth(middleware.CookieAuthConfig{
+		Cipher: cipher,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "initing auth middleware")
+	}
+
+	server.Use(authMiddleware)
 
 	app.server = server
 	app.serverAddr = cfg.Server.Addr
 
 	backup, err := storage.NewFileStorage(cfg.Storage.Filepath)
 	if err != nil {
-		return nil, errors.Wrap(err, "error initing backup storage")
+		return nil, errors.Wrap(err, "initing backup storage")
 	}
 
 	shortlinkRepo := repository.NewInMemShortlinkRepo(backup)
@@ -44,7 +64,7 @@ func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 
 	err = shortlinkRepo.Restore(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "error restoring from backup")
+		return nil, errors.Wrap(err, "restoring from backup")
 	}
 
 	shortenerUC := usecase.NewShortener(cfg.Shortener, shortlinkRepo)
@@ -64,17 +84,17 @@ func (a *App) Run(ctx context.Context) error {
 func (a *App) Stop(ctx context.Context) error {
 	err := a.repo.Backup(ctx)
 	if err != nil {
-		return errors.Wrap(err, "error saving links to backup")
+		return errors.Wrap(err, "saving links to backup")
 	}
 
 	err = a.repo.Close(ctx)
 	if err != nil {
-		return errors.Wrap(err, "error closing repo")
+		return errors.Wrap(err, "closing repo")
 	}
 
 	err = a.server.Shutdown()
 	if err != nil {
-		return errors.Wrap(err, "error shutting down server")
+		return errors.Wrap(err, "shutting down server")
 	}
 
 	return nil

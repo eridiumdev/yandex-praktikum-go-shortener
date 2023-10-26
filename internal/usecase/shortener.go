@@ -44,7 +44,7 @@ func NewShortener(cfg config.Shortener, repo repository.ShortlinkRepo) *Shortene
 	}
 }
 
-func (uc *ShortenerUC) CreateShortlink(ctx context.Context, length int, longURL string) (*entity.Shortlink, error) {
+func (uc *ShortenerUC) CreateShortlink(ctx context.Context, userID string, length int, longURL string) (*entity.Shortlink, error) {
 	uri, err := url.Parse(longURL)
 	if err != nil {
 		log.Printf("Error parsing URL: %s", err)
@@ -59,11 +59,11 @@ func (uc *ShortenerUC) CreateShortlink(ctx context.Context, length int, longURL 
 		length = uc.defaultLength
 	}
 
-	var id string
+	var linkID string
 
 	for tries := 0; ; tries++ {
-		id = uc.generateID(length)
-		exists, err := uc.repo.FindShortlink(ctx, id)
+		linkID = uc.generateLinkID(length)
+		exists, err := uc.repo.FindShortlink(ctx, userID, linkID)
 		if err != nil {
 			return nil, err
 		}
@@ -76,9 +76,10 @@ func (uc *ShortenerUC) CreateShortlink(ctx context.Context, length int, longURL 
 	}
 
 	link := &entity.Shortlink{
-		ID:    id,
-		Long:  longURL,
-		Short: uc.baseURL + id,
+		ID:     linkID,
+		UserID: userID,
+		Long:   longURL,
+		Short:  uc.baseURL + linkID,
 	}
 
 	log.Printf("URL shortened: %s -> %s", link.Long, link.Short)
@@ -86,7 +87,7 @@ func (uc *ShortenerUC) CreateShortlink(ctx context.Context, length int, longURL 
 	return link, uc.repo.SaveShortlink(ctx, link)
 }
 
-func (uc *ShortenerUC) generateID(length int) string {
+func (uc *ShortenerUC) generateLinkID(length int) string {
 	var id string
 
 	for i := 0; i < length; i++ {
@@ -97,6 +98,14 @@ func (uc *ShortenerUC) generateID(length int) string {
 	return id
 }
 
-func (uc *ShortenerUC) GetShortlink(ctx context.Context, id string) (*entity.Shortlink, error) {
-	return uc.repo.FindShortlink(ctx, id)
+func (uc *ShortenerUC) GetShortlink(ctx context.Context, linkID string) (*entity.Shortlink, error) {
+	return uc.repo.FindShortlink(ctx, "", linkID)
+}
+
+func (uc *ShortenerUC) GetUserShortlink(ctx context.Context, userID, linkID string) (*entity.Shortlink, error) {
+	return uc.repo.FindShortlink(ctx, userID, linkID)
+}
+
+func (uc *ShortenerUC) ListUserShortlinks(ctx context.Context, userID string) ([]*entity.Shortlink, error) {
+	return uc.repo.GetShortlinks(ctx, userID)
 }
