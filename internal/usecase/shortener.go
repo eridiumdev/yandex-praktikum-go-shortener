@@ -48,7 +48,7 @@ func (uc *ShortenerUC) Ping(ctx context.Context) error {
 	err := uc.repo.Ping(ctx)
 	if err != nil {
 		log.Printf("error pinging repo: %s", err)
-		return ErrDbUnavailable
+		return ErrDBUnavailable
 	}
 	return nil
 }

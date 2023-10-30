@@ -210,7 +210,7 @@ func (ctrl *ShortenerController) errorStatus(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, usecase.ErrIDConflict):
 		return http.StatusConflict
-	case errors.Is(err, usecase.ErrDbUnavailable):
+	case errors.Is(err, usecase.ErrDBUnavailable):
 		fallthrough
 	default:
 		return http.StatusInternalServerError
