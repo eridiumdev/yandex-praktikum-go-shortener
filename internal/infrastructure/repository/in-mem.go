@@ -25,6 +25,10 @@ func NewInMemShortlinkRepo(backup storage.Storage) *InMemShortlinkRepo {
 	}
 }
 
+func (r *InMemShortlinkRepo) Ping(ctx context.Context) error {
+	return nil
+}
+
 func (r *InMemShortlinkRepo) SaveShortlink(ctx context.Context, link *entity.Shortlink) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()

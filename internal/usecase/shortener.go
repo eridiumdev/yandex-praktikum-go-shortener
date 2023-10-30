@@ -44,6 +44,15 @@ func NewShortener(cfg config.Shortener, repo repository.ShortlinkRepo) *Shortene
 	}
 }
 
+func (uc *ShortenerUC) Ping(ctx context.Context) error {
+	err := uc.repo.Ping(ctx)
+	if err != nil {
+		log.Printf("error pinging repo: %s", err)
+		return ErrDbUnavailable
+	}
+	return nil
+}
+
 func (uc *ShortenerUC) CreateShortlink(ctx context.Context, userID string, length int, longURL string) (*entity.Shortlink, error) {
 	uri, err := url.Parse(longURL)
 	if err != nil {

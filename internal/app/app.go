@@ -59,7 +59,10 @@ func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 		return nil, errors.Wrap(err, "initing backup storage")
 	}
 
-	shortlinkRepo := repository.NewInMemShortlinkRepo(backup)
+	shortlinkRepo, err := repository.NewPostgresRepo(cfg.PostgreSQL, backup)
+	if err != nil {
+		return nil, errors.Wrap(err, "initing postgres repo")
+	}
 	app.repo = shortlinkRepo
 
 	err = shortlinkRepo.Restore(ctx)
