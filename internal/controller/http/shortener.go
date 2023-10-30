@@ -25,7 +25,7 @@ func NewShortenerController(router *fiber.App, shortener usecase.Shortener) *Sho
 	router.Get("/ping", c.ping)
 
 	router.Post("/", c.createShortlink)
-	router.Get("/:id", c.getShortlink)
+	router.Get("/:id<len(5)>", c.getShortlink)
 
 	router.Post("/api/shorten", c.shortenLink)
 	router.Get("/api/user/urls", c.listShortlinks)
