@@ -40,7 +40,7 @@ func NewShortener(cfg config.Shortener, repo repository.ShortlinkRepo) *Shortene
 		defaultLength: cfg.DefaultLength,
 		alphabet:      alphabet,
 		repo:          repo,
-		rng:           rand.New(rand.NewSource(time.Now().Unix())),
+		rng:           rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
