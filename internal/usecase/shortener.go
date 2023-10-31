@@ -40,8 +40,17 @@ func NewShortener(cfg config.Shortener, repo repository.ShortlinkRepo) *Shortene
 		defaultLength: cfg.DefaultLength,
 		alphabet:      alphabet,
 		repo:          repo,
-		rng:           rand.New(rand.NewSource(time.Now().Unix())),
+		rng:           rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
+}
+
+func (uc *ShortenerUC) Ping(ctx context.Context) error {
+	err := uc.repo.Ping(ctx)
+	if err != nil {
+		log.Printf("error pinging repo: %s", err)
+		return ErrDBUnavailable
+	}
+	return nil
 }
 
 func (uc *ShortenerUC) CreateShortlink(ctx context.Context, userID string, length int, longURL string) (*entity.Shortlink, error) {

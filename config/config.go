@@ -9,10 +9,11 @@ import (
 
 type (
 	Config struct {
-		App       App
-		Server    Server
-		Storage   Storage
-		Shortener Shortener
+		App        App
+		Server     Server
+		PostgreSQL PostgreSQL
+		Storage    Storage
+		Shortener  Shortener
 	}
 	App struct {
 		ShutdownTimeout time.Duration
@@ -20,6 +21,10 @@ type (
 	}
 	Server struct {
 		Addr string `env:"SERVER_ADDRESS"`
+	}
+	PostgreSQL struct {
+		ConnString  string `env:"DATABASE_DSN"`
+		PingTimeout time.Duration
 	}
 	Storage struct {
 		Filepath string `env:"FILE_STORAGE_PATH"`
@@ -36,6 +41,9 @@ func Load() (*Config, error) {
 			ShutdownTimeout: time.Second * 3,
 			AuthSecret:      "U2ahPqQAQiWUxfdT7SDBNFrgcGFkJ6Tq",
 		},
+		PostgreSQL: PostgreSQL{
+			PingTimeout: time.Second,
+		},
 		Shortener: Shortener{
 			DefaultLength: 5,
 		},
@@ -44,6 +52,7 @@ func Load() (*Config, error) {
 	flag.StringVar(&cfg.Server.Addr, "a", ":8080", "server address")
 	flag.StringVar(&cfg.Storage.Filepath, "f", "backup.json", "backup file path")
 	flag.StringVar(&cfg.Shortener.BaseURL, "b", "http://localhost:8080", "shortlink base URL")
+	flag.StringVar(&cfg.PostgreSQL.ConnString, "d", "postgresql://postgres:qwerty123@127.0.0.1:15432/shortener", "database connection string")
 	flag.Parse()
 
 	// Env vars take priority

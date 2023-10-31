@@ -22,12 +22,28 @@ func NewShortenerController(router *fiber.App, shortener usecase.Shortener) *Sho
 		shortener: shortener,
 	}
 
+	router.Get("/ping", c.ping)
+
 	router.Post("/", c.createShortlink)
+	router.Get("/:id<len(5)>", c.getShortlink)
+
 	router.Post("/api/shorten", c.shortenLink)
 	router.Get("/api/user/urls", c.listShortlinks)
-	router.Get("/:id", c.getShortlink)
 
 	return c
+}
+
+func (ctrl *ShortenerController) ping(c *fiber.Ctx) error {
+	ctx := c.Context()
+
+	err := ctrl.shortener.Ping(ctx)
+	if err != nil {
+		c.Status(ctrl.errorStatus(err))
+		return c.SendString(err.Error())
+	}
+
+	c.Status(http.StatusOK)
+	return nil
 }
 
 func (ctrl *ShortenerController) createShortlink(c *fiber.Ctx) error {
@@ -194,6 +210,8 @@ func (ctrl *ShortenerController) errorStatus(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, usecase.ErrIDConflict):
 		return http.StatusConflict
+	case errors.Is(err, usecase.ErrDBUnavailable):
+		fallthrough
 	default:
 		return http.StatusInternalServerError
 	}

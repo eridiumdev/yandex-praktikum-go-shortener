@@ -58,14 +58,24 @@ func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "initing backup storage")
 	}
+	log.Printf("init backup storage @ %s", cfg.Storage.Filepath)
 
-	shortlinkRepo := repository.NewInMemShortlinkRepo(backup)
+	var shortlinkRepo repository.ShortlinkRepo
+	shortlinkRepo, err = repository.NewPostgresRepo(cfg.PostgreSQL, backup)
+	if err != nil {
+		// Fallback to in-mem repo
+		shortlinkRepo = repository.NewInMemShortlinkRepo(backup)
+		log.Printf("init shortlink repo @ in-mem")
+	} else {
+		log.Printf("init shortlink repo @ %s", cfg.PostgreSQL.ConnString)
+	}
 	app.repo = shortlinkRepo
 
 	err = shortlinkRepo.Restore(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "restoring from backup")
 	}
+	log.Printf("restore from backup complete")
 
 	shortenerUC := usecase.NewShortener(cfg.Shortener, shortlinkRepo)
 	http.NewShortenerController(server, shortenerUC)

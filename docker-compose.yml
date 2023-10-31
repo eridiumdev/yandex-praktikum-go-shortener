@@ -1,0 +1,23 @@
+version: "3.9"
+
+volumes:
+  vol-pg:
+    name: ya-shortener-vol-pg
+
+services:
+  pg:
+    image: postgres:16-alpine
+    container_name: ya-shortener-pg
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+    volumes:
+      - vol-pg:/var/lib/postgresql/data
+    ports:
+      - "15432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: qwerty123
+      POSTGRES_DB: shortener

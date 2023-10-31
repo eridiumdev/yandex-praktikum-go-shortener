@@ -11,6 +11,8 @@ type ShortlinkRepo interface {
 	FindShortlink(ctx context.Context, userID, linkID string) (*entity.Shortlink, error)
 	GetShortlinks(ctx context.Context, userID string) ([]*entity.Shortlink, error)
 
+	Ping(ctx context.Context) error
+
 	Backup(ctx context.Context) error
 	Restore(ctx context.Context) error
 	Close(ctx context.Context) error
