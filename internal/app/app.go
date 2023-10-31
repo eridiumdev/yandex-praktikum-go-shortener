@@ -58,11 +58,16 @@ func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "initing backup storage")
 	}
+	log.Printf("init backup storage @ %s", cfg.Storage.Filepath)
 
-	shortlinkRepo, err := repository.NewPostgresRepo(cfg.PostgreSQL, backup)
+	var shortlinkRepo repository.ShortlinkRepo
+	shortlinkRepo, err = repository.NewPostgresRepo(cfg.PostgreSQL, backup)
 	if err != nil {
-		// error on postgres init is non-fatal now I guess.. (for yandex tests)
-		//return nil, errors.Wrap(err, "initing postgres repo")
+		// Fallback to in-mem repo
+		shortlinkRepo = repository.NewInMemShortlinkRepo(backup)
+		log.Printf("init shortlink repo @ in-mem")
+	} else {
+		log.Printf("init shortlink repo @ %s", cfg.PostgreSQL.ConnString)
 	}
 	app.repo = shortlinkRepo
 
@@ -70,6 +75,7 @@ func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "restoring from backup")
 	}
+	log.Printf("restore from backup complete")
 
 	shortenerUC := usecase.NewShortener(cfg.Shortener, shortlinkRepo)
 	http.NewShortenerController(server, shortenerUC)
