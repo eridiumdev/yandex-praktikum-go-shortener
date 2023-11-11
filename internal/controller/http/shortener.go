@@ -49,7 +49,7 @@ func (ctrl *ShortenerController) ping(c *fiber.Ctx) error {
 func (ctrl *ShortenerController) createShortlink(c *fiber.Ctx) error {
 	ctx := c.Context()
 
-	userID, err := ctrl.userID(c.UserContext())
+	userUID, err := ctrl.userUID(c.UserContext())
 	if err != nil {
 		c.Status(http.StatusUnauthorized)
 		return nil
@@ -57,7 +57,7 @@ func (ctrl *ShortenerController) createShortlink(c *fiber.Ctx) error {
 
 	body := c.Body()
 
-	link, err := ctrl.shortener.CreateShortlink(ctx, userID, 0, string(body))
+	link, err := ctrl.shortener.CreateShortlink(ctx, userUID, 0, string(body))
 	if err != nil {
 		log.Printf("Error creating shortlink: %s", err)
 		c.Status(ctrl.errorStatus(err))
@@ -80,7 +80,7 @@ type (
 func (ctrl *ShortenerController) shortenLink(c *fiber.Ctx) error {
 	ctx := c.Context()
 
-	userID, err := ctrl.userID(c.UserContext())
+	userUID, err := ctrl.userUID(c.UserContext())
 	if err != nil {
 		c.Status(http.StatusUnauthorized)
 		return nil
@@ -94,7 +94,7 @@ func (ctrl *ShortenerController) shortenLink(c *fiber.Ctx) error {
 		return c.SendString(err.Error())
 	}
 
-	link, err := ctrl.shortener.CreateShortlink(ctx, userID, 0, req.URL)
+	link, err := ctrl.shortener.CreateShortlink(ctx, userUID, 0, req.URL)
 	if err != nil {
 		log.Printf("Error creating shortlink: %s", err)
 		c.Status(ctrl.errorStatus(err))
@@ -120,13 +120,13 @@ func (ctrl *ShortenerController) shortenLink(c *fiber.Ctx) error {
 func (ctrl *ShortenerController) getShortlink(c *fiber.Ctx) error {
 	ctx := c.Context()
 
-	linkID := c.Params("id")
-	if linkID == "" {
+	linkUID := c.Params("id")
+	if linkUID == "" {
 		c.Status(http.StatusBadRequest)
 		return nil
 	}
 
-	link, err := ctrl.shortener.GetShortlink(ctx, linkID)
+	link, err := ctrl.shortener.GetShortlink(ctx, linkUID)
 	if err != nil {
 		log.Printf("Error getting shortlink: %s", err)
 		c.Status(ctrl.errorStatus(err))
@@ -153,13 +153,13 @@ type (
 func (ctrl *ShortenerController) listShortlinks(c *fiber.Ctx) error {
 	ctx := c.Context()
 
-	userID, err := ctrl.userID(c.UserContext())
+	userUID, err := ctrl.userUID(c.UserContext())
 	if err != nil {
 		c.Status(http.StatusUnauthorized)
 		return nil
 	}
 
-	links, err := ctrl.shortener.ListUserShortlinks(ctx, userID)
+	links, err := ctrl.shortener.ListUserShortlinks(ctx, userUID)
 	if err != nil {
 		log.Printf("Error listing shortlinks: %s", err)
 		c.Status(ctrl.errorStatus(err))
@@ -191,15 +191,15 @@ func (ctrl *ShortenerController) listShortlinks(c *fiber.Ctx) error {
 	return c.Send(resp)
 }
 
-func (ctrl *ShortenerController) userID(ctx context.Context) (string, error) {
+func (ctrl *ShortenerController) userUID(ctx context.Context) (string, error) {
 	authToken := ctx.Value(entity.AuthTokenCtxKey)
 
 	token, ok := authToken.(*entity.AuthToken)
-	if !ok || token.UserID == "" {
+	if !ok || token.UserUID == "" {
 		return "", ErrUnauthenticatedUser
 	}
 
-	return token.UserID, nil
+	return token.UserUID, nil
 }
 
 func (ctrl *ShortenerController) errorStatus(err error) int {

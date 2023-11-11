@@ -23,8 +23,9 @@ type (
 		Addr string `env:"SERVER_ADDRESS"`
 	}
 	PostgreSQL struct {
-		ConnString  string `env:"DATABASE_DSN"`
-		PingTimeout time.Duration
+		ConnString     string `env:"DATABASE_DSN"`
+		MigrationsPath string
+		PingTimeout    time.Duration
 	}
 	Storage struct {
 		Filepath string `env:"FILE_STORAGE_PATH"`
@@ -42,7 +43,8 @@ func Load() (*Config, error) {
 			AuthSecret:      "U2ahPqQAQiWUxfdT7SDBNFrgcGFkJ6Tq",
 		},
 		PostgreSQL: PostgreSQL{
-			PingTimeout: time.Second,
+			PingTimeout:    time.Second,
+			MigrationsPath: "./migrations",
 		},
 		Shortener: Shortener{
 			DefaultLength: 5,
@@ -52,7 +54,7 @@ func Load() (*Config, error) {
 	flag.StringVar(&cfg.Server.Addr, "a", ":8080", "server address")
 	flag.StringVar(&cfg.Storage.Filepath, "f", "backup.json", "backup file path")
 	flag.StringVar(&cfg.Shortener.BaseURL, "b", "http://localhost:8080", "shortlink base URL")
-	flag.StringVar(&cfg.PostgreSQL.ConnString, "d", "postgresql://postgres:qwerty123@127.0.0.1:15432/shortener", "database connection string")
+	flag.StringVar(&cfg.PostgreSQL.ConnString, "d", "postgresql://postgres:qwerty123@127.0.0.1:15432/shortener?sslmode=disable", "database connection string")
 	flag.Parse()
 
 	// Env vars take priority

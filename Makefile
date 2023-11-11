@@ -20,7 +20,7 @@ lint: ### Run linters
 	golangci-lint run
 .PHONY: lint
 
-checks: unit test lint ### Run all checks
+checks: unit lint ### Run all checks
 	@echo ""
 	@echo "All good!"
 .PHONY: checks

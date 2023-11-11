@@ -9,8 +9,8 @@ import (
 type Shortener interface {
 	Ping(ctx context.Context) error
 
-	CreateShortlink(ctx context.Context, userID string, length int, url string) (*entity.Shortlink, error)
-	GetShortlink(ctx context.Context, linkID string) (*entity.Shortlink, error)
-	GetUserShortlink(ctx context.Context, userID, linkID string) (*entity.Shortlink, error)
-	ListUserShortlinks(ctx context.Context, userID string) ([]*entity.Shortlink, error)
+	CreateShortlink(ctx context.Context, userUID string, length int, url string) (*entity.Shortlink, error)
+	GetShortlink(ctx context.Context, linkUID string) (*entity.Shortlink, error)
+	GetUserShortlink(ctx context.Context, userUID, linkUID string) (*entity.Shortlink, error)
+	ListUserShortlinks(ctx context.Context, userUID string) ([]*entity.Shortlink, error)
 }

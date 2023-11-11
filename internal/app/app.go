@@ -63,6 +63,7 @@ func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 	var shortlinkRepo repository.ShortlinkRepo
 	shortlinkRepo, err = repository.NewPostgresRepo(cfg.PostgreSQL, backup)
 	if err != nil {
+		log.Printf("error on postgres init: %s", err)
 		// Fallback to in-mem repo
 		shortlinkRepo = repository.NewInMemShortlinkRepo(backup)
 		log.Printf("init shortlink repo @ in-mem")

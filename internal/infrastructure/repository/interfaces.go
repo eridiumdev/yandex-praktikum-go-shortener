@@ -8,8 +8,8 @@ import (
 
 type ShortlinkRepo interface {
 	SaveShortlink(ctx context.Context, link *entity.Shortlink) error
-	FindShortlink(ctx context.Context, userID, linkID string) (*entity.Shortlink, error)
-	GetShortlinks(ctx context.Context, userID string) ([]*entity.Shortlink, error)
+	FindShortlink(ctx context.Context, userUID, linkUID string) (*entity.Shortlink, error)
+	GetShortlinks(ctx context.Context, userUID string) ([]*entity.Shortlink, error)
 
 	Ping(ctx context.Context) error
 
