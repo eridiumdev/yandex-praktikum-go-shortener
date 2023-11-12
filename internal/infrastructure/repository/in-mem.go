@@ -12,7 +12,7 @@ import (
 
 type InMemShortlinkRepo struct {
 	backup storage.Storage
-	//		   userID     linkID
+	//		  userUID   linkUID
 	links map[string]map[string]*entity.Shortlink
 	mutex sync.RWMutex
 }
@@ -33,47 +33,47 @@ func (r *InMemShortlinkRepo) SaveShortlink(ctx context.Context, link *entity.Sho
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	if _, ok := r.links[link.UserID]; !ok {
-		r.links[link.UserID] = make(map[string]*entity.Shortlink)
+	if _, ok := r.links[link.UserUID]; !ok {
+		r.links[link.UserUID] = make(map[string]*entity.Shortlink)
 	}
 
-	r.links[link.UserID][link.ID] = link
+	r.links[link.UserUID][link.UID] = link
 
 	return nil
 }
 
-func (r *InMemShortlinkRepo) FindShortlink(ctx context.Context, userID, linkID string) (*entity.Shortlink, error) {
+func (r *InMemShortlinkRepo) FindShortlink(ctx context.Context, userUID, linkUID string) (*entity.Shortlink, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	// If userID is not specified, search all links
-	if userID == "" {
+	// If userUID is not specified, search all links
+	if userUID == "" {
 		for _, userLinks := range r.links {
-			if link, ok := userLinks[linkID]; ok {
+			if link, ok := userLinks[linkUID]; ok {
 				return link, nil
 			}
 		}
 		return nil, nil
 	}
 
-	if _, ok := r.links[userID]; !ok {
+	if _, ok := r.links[userUID]; !ok {
 		return nil, nil
 	}
 
-	return r.links[userID][linkID], nil
+	return r.links[userUID][linkUID], nil
 }
 
-func (r *InMemShortlinkRepo) GetShortlinks(ctx context.Context, userID string) ([]*entity.Shortlink, error) {
+func (r *InMemShortlinkRepo) GetShortlinks(ctx context.Context, userUID string) ([]*entity.Shortlink, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	if _, ok := r.links[userID]; !ok {
+	if _, ok := r.links[userUID]; !ok {
 		return nil, nil
 	}
 
 	var links []*entity.Shortlink
 
-	for _, link := range r.links[userID] {
+	for _, link := range r.links[userUID] {
 		links = append(links, link)
 	}
 	return links, nil
@@ -104,10 +104,10 @@ func (r *InMemShortlinkRepo) Restore(ctx context.Context) error {
 	}
 
 	for _, link := range links {
-		if _, ok := r.links[link.UserID]; !ok {
-			r.links[link.UserID] = make(map[string]*entity.Shortlink)
+		if _, ok := r.links[link.UserUID]; !ok {
+			r.links[link.UserUID] = make(map[string]*entity.Shortlink)
 		}
-		r.links[link.UserID][link.ID] = link
+		r.links[link.UserUID][link.UID] = link
 	}
 
 	return nil

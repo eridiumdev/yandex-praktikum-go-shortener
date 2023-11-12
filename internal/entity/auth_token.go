@@ -4,7 +4,7 @@ const AuthTokenCtxKey = AuthTokenKey("auth-token")
 
 type (
 	AuthToken struct {
-		UserID string
+		UserUID string
 	}
 	AuthTokenKey string
 )

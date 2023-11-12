@@ -14,11 +14,11 @@ func NewMock() *Mock {
 
 func (m *Mock) Encrypt(ctx context.Context, token *entity.AuthToken) (string, error) {
 	// Return as plaintext
-	return token.UserID, nil
+	return token.UserUID, nil
 }
 
 func (m *Mock) Decrypt(ctx context.Context, encrypted string) (*entity.AuthToken, error) {
 	return &entity.AuthToken{
-		UserID: encrypted,
+		UserUID: encrypted,
 	}, nil
 }

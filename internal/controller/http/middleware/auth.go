@@ -70,14 +70,14 @@ func CookieAuth(cfg CookieAuthConfig) (fiber.Handler, error) {
 }
 
 func generateToken() (*entity.AuthToken, error) {
-	// Generate random bytes for the user ID
-	userID := make([]byte, 16)
-	_, err := rand.Read(userID)
+	// Generate random bytes for the user UID
+	userUID := make([]byte, 16)
+	_, err := rand.Read(userUID)
 	if err != nil {
-		return nil, errors.Wrapf(err, "preparing random bytes for userID")
+		return nil, errors.Wrapf(err, "preparing random bytes for userUID")
 	}
 
 	return &entity.AuthToken{
-		UserID: hex.EncodeToString(userID),
+		UserUID: hex.EncodeToString(userUID),
 	}, nil
 }

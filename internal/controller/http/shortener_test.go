@@ -192,16 +192,16 @@ func TestGetShortlink(t *testing.T) {
 
 	for _, link := range []entity.Shortlink{
 		{
-			ID:     "link1",
-			UserID: dummyUserID,
-			Short:  "http://127.0.0.1/link1",
-			Long:   "https://example.org",
+			UID:     "link1",
+			UserUID: dummyUserID,
+			Short:   "http://127.0.0.1/link1",
+			Long:    "https://example.org",
 		},
 		{
-			ID:     "link2",
-			UserID: dummyUserID,
-			Short:  "http://127.0.0.1/link2",
-			Long:   "https://google.com",
+			UID:     "link2",
+			UserUID: dummyUserID,
+			Short:   "http://127.0.0.1/link2",
+			Long:    "https://google.com",
 		},
 	} {
 		err := repo.SaveShortlink(ctx, &link)
@@ -284,10 +284,10 @@ func prepareRouter() (*fiber.App, error) {
 	return srv, nil
 }
 
-func addAuthCookie(r *http.Request, userID string) {
+func addAuthCookie(r *http.Request, userUID string) {
 	r.AddCookie(&http.Cookie{
 		Name:    middleware.CookieAuthName,
-		Value:   userID,
+		Value:   userUID,
 		Expires: time.Now().Add(middleware.CookieAuthAge),
 	})
 }
