@@ -42,6 +42,16 @@ func (r *InMemShortlinkRepo) SaveShortlink(ctx context.Context, link *entity.Sho
 	return nil
 }
 
+func (r *InMemShortlinkRepo) SaveShortlinks(ctx context.Context, links []*entity.Shortlink) error {
+	for _, link := range links {
+		if err := r.SaveShortlink(ctx, link); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (r *InMemShortlinkRepo) FindShortlink(ctx context.Context, userUID, linkUID string) (*entity.Shortlink, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
@@ -61,6 +71,25 @@ func (r *InMemShortlinkRepo) FindShortlink(ctx context.Context, userUID, linkUID
 	}
 
 	return r.links[userUID][linkUID], nil
+}
+
+func (r *InMemShortlinkRepo) FindShortlinks(ctx context.Context, linkUIDs []string) ([]*entity.Shortlink, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	var links []*entity.Shortlink
+
+	for _, linkUID := range linkUIDs {
+	next:
+		for _, userLinks := range r.links {
+			if link, ok := userLinks[linkUID]; ok {
+				links = append(links, link)
+				goto next
+			}
+		}
+	}
+
+	return links, nil
 }
 
 func (r *InMemShortlinkRepo) GetShortlinks(ctx context.Context, userUID string) ([]*entity.Shortlink, error) {

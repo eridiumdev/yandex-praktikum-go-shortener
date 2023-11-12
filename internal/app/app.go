@@ -30,11 +30,11 @@ func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 	app := &App{}
 
 	server := fiber.New()
-	server.Use(logger.New(logger.Config{
-		Format: "[${time}] ${method} ${path} |req: ${body} |resp: ${status} ${resBody}\n",
-	}))
 	server.Use(compress.New(compress.Config{
 		Level: compress.LevelBestSpeed,
+	}))
+	server.Use(logger.New(logger.Config{
+		Format: "[${time}] ${method} ${path} |req: ${body} |resp: ${status} ${resBody}\n",
 	}))
 
 	cipher, err := crypto.NewAES256(cfg.App.AuthSecret)
@@ -61,7 +61,7 @@ func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 	log.Printf("init backup storage @ %s", cfg.Storage.Filepath)
 
 	var shortlinkRepo repository.ShortlinkRepo
-	shortlinkRepo, err = repository.NewPostgresRepo(cfg.PostgreSQL, backup)
+	shortlinkRepo, err = repository.NewPostgresRepo(ctx, cfg.PostgreSQL, backup)
 	if err != nil {
 		log.Printf("error on postgres init: %s", err)
 		// Fallback to in-mem repo
@@ -86,7 +86,7 @@ func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 
 func (a *App) Run(ctx context.Context) error {
 	log.Printf("Listening on %s", a.serverAddr)
-	if err := a.server.Listen(a.serverAddr); err != nil && err != nethttp.ErrServerClosed {
+	if err := a.server.Listen(a.serverAddr); err != nil && !errors.Is(err, nethttp.ErrServerClosed) {
 		return err
 	}
 	return nil

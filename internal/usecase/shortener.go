@@ -4,9 +4,11 @@ import (
 	"context"
 	"log"
 	"math/rand"
-	"net/url"
+	neturl "net/url"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/config"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/entity"
@@ -54,14 +56,9 @@ func (uc *ShortenerUC) Ping(ctx context.Context) error {
 }
 
 func (uc *ShortenerUC) CreateShortlink(ctx context.Context, userUID string, length int, longURL string) (*entity.Shortlink, error) {
-	uri, err := url.Parse(longURL)
+	err := uc.validateURL(longURL)
 	if err != nil {
-		log.Printf("Error parsing URL: %s", err)
-		return nil, ErrInvalidURL
-	}
-	if uri.Scheme == "" || uri.Host == "" {
-		log.Printf("Provided URL is incomplete (%s)", longURL)
-		return nil, ErrIncompleteURL
+		return nil, err
 	}
 
 	if length <= 0 {
@@ -80,7 +77,7 @@ func (uc *ShortenerUC) CreateShortlink(ctx context.Context, userUID string, leng
 			break
 		}
 		if tries > 2 {
-			return nil, ErrIDConflict
+			return nil, ErrUIDConflict
 		}
 	}
 
@@ -94,6 +91,89 @@ func (uc *ShortenerUC) CreateShortlink(ctx context.Context, userUID string, leng
 	log.Printf("URL shortened: %s -> %s", link.Long, link.Short)
 
 	return link, uc.repo.SaveShortlink(ctx, link)
+}
+
+func (uc *ShortenerUC) CreateShortlinks(ctx context.Context, data CreateShortlinksIn) ([]*entity.Shortlink, error) {
+	if data.Length <= 0 {
+		data.Length = uc.defaultLength
+	}
+
+	linkMap := make(map[string]*entity.Shortlink, len(data.Links))
+	linkUIDs := make([]string, 0)
+
+	for _, longLink := range data.Links {
+		err := uc.validateURL(longLink.URL)
+		if err != nil {
+			return nil, errors.Wrapf(err, "URL = %s", longLink.URL)
+		}
+
+		link, err := uc.prepareShortlink(longLink.URL, data.Length, data.UserUID, longLink.CorrelationID)
+		if err != nil {
+			return nil, errors.Wrapf(err, "[UC] prepare shortlink")
+		}
+		linkMap[link.UID] = link
+		linkUIDs = append(linkUIDs, link.UID)
+	}
+
+	for tries := 0; ; tries++ {
+		if tries > 2 {
+			return nil, ErrUIDConflict
+		}
+
+		duplicates, err := uc.repo.FindShortlinks(ctx, linkUIDs)
+		if err != nil {
+			return nil, errors.Wrapf(err, "[UC] find shortlinks")
+		}
+		if len(duplicates) == 0 {
+			break
+		}
+
+		// Reset for next FindShortlinks (will only contain re-generated links)
+		linkUIDs = linkUIDs[:0]
+
+		for _, dup := range duplicates {
+			link, err := uc.prepareShortlink(dup.Long, data.Length, data.UserUID, dup.CorrelationID)
+			if err != nil {
+				return nil, errors.Wrapf(err, "[UC] prepare shortlink (dup)")
+			}
+			linkUIDs = append(linkUIDs, link.UID)
+			linkMap[dup.UID] = link
+		}
+	}
+
+	var links []*entity.Shortlink
+
+	for _, link := range linkMap {
+		links = append(links, link)
+		log.Printf("URL shortened: %s -> %s", link.Long, link.Short)
+	}
+
+	return links, uc.repo.SaveShortlinks(ctx, links)
+}
+
+func (uc *ShortenerUC) prepareShortlink(longURL string, length int, userUID string, correlationID string) (*entity.Shortlink, error) {
+	linkUID := uc.generateLinkUID(length)
+
+	return &entity.Shortlink{
+		UID:           linkUID,
+		UserUID:       userUID,
+		Long:          longURL,
+		Short:         uc.baseURL + linkUID,
+		CorrelationID: correlationID,
+	}, nil
+}
+
+func (uc *ShortenerUC) validateURL(url string) error {
+	uri, err := neturl.Parse(url)
+	if err != nil {
+		log.Printf("Error parsing URL: %s", err)
+		return ErrInvalidURL
+	}
+	if uri.Scheme == "" || uri.Host == "" {
+		log.Printf("Provided URL is incomplete (%s)", url)
+		return ErrIncompleteURL
+	}
+	return nil
 }
 
 func (uc *ShortenerUC) generateLinkUID(length int) string {
