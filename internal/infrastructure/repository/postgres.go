@@ -85,7 +85,7 @@ func (r *PostgresRepo) Ping(ctx context.Context) error {
 }
 
 func (r *PostgresRepo) SaveShortlink(ctx context.Context, link *entity.Shortlink) error {
-	_, err := saveShortlinkStmt.ExecContext(ctx, link.UID, link.UserUID, link.Short, link.Long)
+	_, err := saveShortlinkStmt.ExecContext(ctx, link.UID, link.UserUID, link.Short, link.Long, link.CorrelationID)
 	if err != nil {
 		return errors.Wrapf(err, "[postgres] insert")
 	}
