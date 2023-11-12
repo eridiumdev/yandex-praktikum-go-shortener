@@ -28,6 +28,7 @@ func NewShortenerController(router *fiber.App, shortener usecase.Shortener) *Sho
 	router.Get("/:id<len(5)>", c.getShortlink)
 
 	router.Post("/api/shorten", c.shortenLink)
+	router.Post("/api/shorten/batch", c.shortenLinksBatch)
 	router.Get("/api/user/urls", c.listShortlinks)
 
 	return c
@@ -115,6 +116,76 @@ func (ctrl *ShortenerController) shortenLink(c *fiber.Ctx) error {
 	return c.Send(resp)
 	// v--- Does not pass Yandex test
 	//return c.JSON(shortenLinkResponse{Result: link.Short})
+}
+
+type (
+	shortenLinksBatchRequest     []shortenLinksBatchRequestLink
+	shortenLinksBatchRequestLink struct {
+		CorrelationID string `json:"correlation_id"`
+		OriginalURL   string `json:"original_url"`
+	}
+	shortenLinksBatchResponse     []shortenLinksBatchResponseLink
+	shortenLinksBatchResponseLink struct {
+		CorrelationID string `json:"correlation_id"`
+		ShortURL      string `json:"short_url"`
+	}
+)
+
+func (ctrl *ShortenerController) shortenLinksBatch(c *fiber.Ctx) error {
+	ctx := c.Context()
+
+	userUID, err := ctrl.userUID(c.UserContext())
+	if err != nil {
+		c.Status(http.StatusUnauthorized)
+		return nil
+	}
+
+	var req shortenLinksBatchRequest
+
+	if err := c.BodyParser(&req); err != nil {
+		log.Printf("Error parsing JSON request: %s", err)
+		c.Status(http.StatusBadRequest)
+		return c.SendString(err.Error())
+	}
+
+	var data []usecase.CreateShortlinksInLink
+	for _, link := range req {
+		data = append(data, usecase.CreateShortlinksInLink{
+			URL:           link.OriginalURL,
+			CorrelationID: link.CorrelationID,
+		})
+	}
+
+	links, err := ctrl.shortener.CreateShortlinks(ctx, usecase.CreateShortlinksIn{
+		UserUID: userUID,
+		Length:  0,
+		Links:   data,
+	})
+	if err != nil {
+		log.Printf("Error creating shortlink: %s", err)
+		c.Status(ctrl.errorStatus(err))
+		return c.SendString(err.Error())
+	}
+
+	var result shortenLinksBatchResponse
+	for _, link := range links {
+		result = append(result, shortenLinksBatchResponseLink{
+			CorrelationID: link.CorrelationID,
+			ShortURL:      link.Short,
+		})
+	}
+
+	resp, err := json.Marshal(result)
+	if err != nil {
+		log.Printf("Error preparing JSON response: %s", err)
+		c.Status(http.StatusInternalServerError)
+		return c.SendString(err.Error())
+	}
+
+	c.Status(http.StatusCreated)
+	c.Set("Content-Type", "application/json")
+
+	return c.Send(resp)
 }
 
 func (ctrl *ShortenerController) getShortlink(c *fiber.Ctx) error {
@@ -208,7 +279,7 @@ func (ctrl *ShortenerController) errorStatus(err error) int {
 		fallthrough
 	case errors.Is(err, usecase.ErrIncompleteURL):
 		return http.StatusBadRequest
-	case errors.Is(err, usecase.ErrIDConflict):
+	case errors.Is(err, usecase.ErrUIDConflict):
 		return http.StatusConflict
 	case errors.Is(err, usecase.ErrDBUnavailable):
 		fallthrough
