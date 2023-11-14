@@ -84,37 +84,53 @@ func (r *PostgresRepo) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (r *PostgresRepo) SaveShortlink(ctx context.Context, link *entity.Shortlink) error {
-	_, err := saveShortlinkStmt.ExecContext(ctx, link.UID, link.UserUID, link.Short, link.Long, link.CorrelationID)
+func (r *PostgresRepo) SaveShortlink(ctx context.Context, link *entity.Shortlink) (*entity.Shortlink, error) {
+	result := new(entity.Shortlink)
+	var conflict bool
+
+	row := saveShortlinkStmt.QueryRowContext(ctx, link.UID, link.UserUID, link.Short, link.Long, link.CorrelationID)
+	err := row.Scan(&result.UID, &result.UserUID, &result.Short, &result.Long, &result.CorrelationID, &conflict)
 	if err != nil {
-		return errors.Wrapf(err, "[postgres] insert")
+		return nil, errors.Wrapf(err, "[postgres] insert")
 	}
-	return nil
+	if conflict {
+		return result, ErrURLConflict
+	}
+	return result, nil
 }
 
-func (r *PostgresRepo) SaveShortlinks(ctx context.Context, links []*entity.Shortlink) error {
+func (r *PostgresRepo) SaveShortlinks(ctx context.Context, links []*entity.Shortlink) ([]*entity.Shortlink, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return errors.Wrapf(err, "[postgres] begin tx")
+		return nil, errors.Wrapf(err, "[postgres] begin tx")
 	}
 
+	var result []*entity.Shortlink
+
 	for _, link := range links {
-		_, err := tx.StmtContext(ctx, saveShortlinkStmt).ExecContext(ctx, link.UID, link.UserUID, link.Short, link.Long, link.CorrelationID)
+		resultLink := new(entity.Shortlink)
+		var conflict bool
+
+		row := tx.QueryRowContext(ctx, link.UID, link.UserUID, link.Short, link.Long, link.CorrelationID)
+		err := row.Scan(&resultLink.UID, &resultLink.UserUID, &resultLink.Short, &resultLink.Long, &resultLink.CorrelationID, &conflict)
+
 		if err != nil {
 			rollbackErr := tx.Rollback()
 			if rollbackErr != nil {
 				log.Printf("[postgres] rollback after insert: %s", err)
 			}
-			return errors.Wrapf(err, "[postgres] insert")
+			return nil, errors.Wrapf(err, "[postgres] insert")
 		}
+
+		result = append(result, resultLink)
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return errors.Wrapf(err, "[postgres] commit after insert")
+		return nil, errors.Wrapf(err, "[postgres] commit after insert")
 	}
 
-	return nil
+	return result, nil
 }
 
 func (r *PostgresRepo) FindShortlink(ctx context.Context, userUID, linkUID string) (*entity.Shortlink, error) {
@@ -234,7 +250,11 @@ func (r *PostgresRepo) Close(ctx context.Context) error {
 func (r *PostgresRepo) initStatements(ctx context.Context) error {
 	var err error
 
-	saveShortlinkStmt, err = r.db.PrepareContext(ctx, "INSERT INTO shortlinks(link_uid, user_uid, short, long, correlation_id) VALUES($1, $2, $3, $4, $5)")
+	saveShortlinkStmt, err = r.db.PrepareContext(ctx,
+		"WITH inserted AS (INSERT INTO shortlinks(link_uid, user_uid, short, long, correlation_id) VALUES($1, $2, $3, $4, $5)"+
+			" ON CONFLICT (long) DO NOTHING RETURNING link_uid, user_uid, short, long, correlation_id)"+
+			", existing AS (SELECT link_uid, user_uid, short, long, correlation_id FROM shortlinks WHERE long = $4)"+
+			" SELECT *, true AS conflict FROM existing UNION SELECT *, false AS conflict FROM inserted")
 	if err != nil {
 		return errors.Wrapf(err, "[postgres] prepare saveShortlinkStmt")
 	}
