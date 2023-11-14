@@ -111,7 +111,7 @@ func (r *PostgresRepo) SaveShortlinks(ctx context.Context, links []*entity.Short
 		resultLink := new(entity.Shortlink)
 		var conflict bool
 
-		row := tx.QueryRowContext(ctx, link.UID, link.UserUID, link.Short, link.Long, link.CorrelationID)
+		row := tx.StmtContext(ctx, saveShortlinkStmt).QueryRowContext(ctx, link.UID, link.UserUID, link.Short, link.Long, link.CorrelationID)
 		err := row.Scan(&resultLink.UID, &resultLink.UserUID, &resultLink.Short, &resultLink.Long, &resultLink.CorrelationID, &conflict)
 
 		if err != nil {
