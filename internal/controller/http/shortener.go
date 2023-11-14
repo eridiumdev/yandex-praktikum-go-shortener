@@ -66,7 +66,7 @@ func (ctrl *ShortenerController) createShortlink(c *fiber.Ctx) error {
 		c.Status(http.StatusCreated)
 	case errors.Is(err, repository.ErrURLConflict):
 		c.Status(http.StatusConflict)
-	case err != nil:
+	default:
 		log.Printf("Error creating shortlink: %s", err)
 		c.Status(ctrl.errorStatus(err))
 		return c.SendString(err.Error())
@@ -108,7 +108,7 @@ func (ctrl *ShortenerController) shortenLink(c *fiber.Ctx) error {
 		c.Status(http.StatusCreated)
 	case errors.Is(err, repository.ErrURLConflict):
 		c.Status(http.StatusConflict)
-	case err != nil:
+	default:
 		log.Printf("Error creating shortlink: %s", err)
 		c.Status(ctrl.errorStatus(err))
 		return c.SendString(err.Error())
