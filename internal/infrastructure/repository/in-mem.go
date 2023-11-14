@@ -29,7 +29,7 @@ func (r *InMemShortlinkRepo) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (r *InMemShortlinkRepo) SaveShortlink(ctx context.Context, link *entity.Shortlink) error {
+func (r *InMemShortlinkRepo) SaveShortlink(ctx context.Context, link *entity.Shortlink) (*entity.Shortlink, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -39,17 +39,17 @@ func (r *InMemShortlinkRepo) SaveShortlink(ctx context.Context, link *entity.Sho
 
 	r.links[link.UserUID][link.UID] = link
 
-	return nil
+	return link, nil
 }
 
-func (r *InMemShortlinkRepo) SaveShortlinks(ctx context.Context, links []*entity.Shortlink) error {
+func (r *InMemShortlinkRepo) SaveShortlinks(ctx context.Context, links []*entity.Shortlink) ([]*entity.Shortlink, error) {
 	for _, link := range links {
-		if err := r.SaveShortlink(ctx, link); err != nil {
-			return err
+		if _, err := r.SaveShortlink(ctx, link); err != nil {
+			return nil, err
 		}
 	}
 
-	return nil
+	return links, nil
 }
 
 func (r *InMemShortlinkRepo) FindShortlink(ctx context.Context, userUID, linkUID string) (*entity.Shortlink, error) {

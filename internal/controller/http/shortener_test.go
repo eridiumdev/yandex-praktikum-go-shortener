@@ -204,7 +204,7 @@ func TestGetShortlink(t *testing.T) {
 			Long:    "https://google.com",
 		},
 	} {
-		err := repo.SaveShortlink(ctx, &link)
+		_, err := repo.SaveShortlink(ctx, &link)
 		require.NoError(t, err)
 	}
 

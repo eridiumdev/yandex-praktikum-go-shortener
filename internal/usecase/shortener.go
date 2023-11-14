@@ -90,7 +90,15 @@ func (uc *ShortenerUC) CreateShortlink(ctx context.Context, userUID string, leng
 
 	log.Printf("URL shortened: %s -> %s", link.Long, link.Short)
 
-	return link, uc.repo.SaveShortlink(ctx, link)
+	link, err = uc.repo.SaveShortlink(ctx, link)
+	if err != nil {
+		if errors.Is(err, repository.ErrURLConflict) {
+			return link, err
+		}
+		return nil, errors.Wrapf(err, "[UC] save shortlink")
+	}
+
+	return link, nil
 }
 
 func (uc *ShortenerUC) CreateShortlinks(ctx context.Context, data CreateShortlinksIn) ([]*entity.Shortlink, error) {
@@ -148,7 +156,12 @@ func (uc *ShortenerUC) CreateShortlinks(ctx context.Context, data CreateShortlin
 		log.Printf("URL shortened: %s -> %s", link.Long, link.Short)
 	}
 
-	return links, uc.repo.SaveShortlinks(ctx, links)
+	links, err := uc.repo.SaveShortlinks(ctx, links)
+	if err != nil {
+		return nil, errors.Wrapf(err, "[UC] save shortlinks")
+	}
+
+	return links, nil
 }
 
 func (uc *ShortenerUC) prepareShortlink(longURL string, length int, userUID string, correlationID string) (*entity.Shortlink, error) {

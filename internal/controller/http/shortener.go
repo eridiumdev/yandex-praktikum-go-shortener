@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/entity"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/usecase"
 )
 
@@ -59,13 +60,18 @@ func (ctrl *ShortenerController) createShortlink(c *fiber.Ctx) error {
 	body := c.Body()
 
 	link, err := ctrl.shortener.CreateShortlink(ctx, userUID, 0, string(body))
-	if err != nil {
+
+	switch {
+	case err == nil:
+		c.Status(http.StatusCreated)
+	case errors.Is(err, repository.ErrURLConflict):
+		c.Status(http.StatusConflict)
+	case err != nil:
 		log.Printf("Error creating shortlink: %s", err)
 		c.Status(ctrl.errorStatus(err))
 		return c.SendString(err.Error())
 	}
 
-	c.Status(http.StatusCreated)
 	return c.SendString(link.Short)
 }
 
@@ -96,7 +102,13 @@ func (ctrl *ShortenerController) shortenLink(c *fiber.Ctx) error {
 	}
 
 	link, err := ctrl.shortener.CreateShortlink(ctx, userUID, 0, req.URL)
-	if err != nil {
+
+	switch {
+	case err == nil:
+		c.Status(http.StatusCreated)
+	case errors.Is(err, repository.ErrURLConflict):
+		c.Status(http.StatusConflict)
+	case err != nil:
 		log.Printf("Error creating shortlink: %s", err)
 		c.Status(ctrl.errorStatus(err))
 		return c.SendString(err.Error())
@@ -110,7 +122,6 @@ func (ctrl *ShortenerController) shortenLink(c *fiber.Ctx) error {
 		return c.SendString(err.Error())
 	}
 
-	c.Status(http.StatusCreated)
 	c.Set("Content-Type", "application/json")
 
 	return c.Send(resp)

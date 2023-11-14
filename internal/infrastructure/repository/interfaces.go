@@ -7,10 +7,10 @@ import (
 )
 
 type ShortlinkRepo interface {
-	SaveShortlink(ctx context.Context, link *entity.Shortlink) error
+	SaveShortlink(ctx context.Context, link *entity.Shortlink) (*entity.Shortlink, error)
 	FindShortlink(ctx context.Context, userUID, linkUID string) (*entity.Shortlink, error)
 
-	SaveShortlinks(ctx context.Context, links []*entity.Shortlink) error
+	SaveShortlinks(ctx context.Context, links []*entity.Shortlink) ([]*entity.Shortlink, error)
 	FindShortlinks(ctx context.Context, linkUIDs []string) ([]*entity.Shortlink, error)
 	GetShortlinks(ctx context.Context, userUID string) ([]*entity.Shortlink, error)
 
