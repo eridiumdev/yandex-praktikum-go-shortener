@@ -2,13 +2,11 @@ package app
 
 import (
 	"context"
-	"log"
+	"errors"
 	nethttp "net/http"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/pkg/errors"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/config"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/controller/http"
@@ -17,36 +15,38 @@ import (
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/storage"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/usecase"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/pkg/logger"
 )
 
-type App struct {
+type Shortener struct {
 	server     *fiber.App
 	serverAddr string
 
 	repo repository.ShortlinkRepo
+	log  *logger.Logger
 }
 
-func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
-	app := &App{}
+func NewShortener(ctx context.Context, cfg *config.Config, log *logger.Logger) (*Shortener, error) {
+	app := &Shortener{
+		log: log,
+	}
 
 	server := fiber.New()
 	server.Use(compress.New(compress.Config{
 		Level: compress.LevelBestSpeed,
 	}))
-	server.Use(logger.New(logger.Config{
-		Format: "[${time}] ${method} ${path} |req: ${body} |resp: ${status} ${resBody}\n",
-	}))
+	server.Use(middleware.Logger(log.SubLogger("http_requests")))
 
-	cipher, err := crypto.NewAES256(cfg.App.AuthSecret)
+	cipher, err := crypto.NewAES256(cfg.App.AuthSecret, log)
 	if err != nil {
-		return nil, errors.Wrap(err, "initing crypto cipher")
+		return nil, log.Wrap(err, "init crypto cipher")
 	}
 
 	authMiddleware, err := middleware.CookieAuth(middleware.CookieAuthConfig{
 		Cipher: cipher,
-	})
+	}, log)
 	if err != nil {
-		return nil, errors.Wrap(err, "initing auth middleware")
+		return nil, log.Wrap(err, "init auth middleware")
 	}
 
 	server.Use(authMiddleware)
@@ -56,56 +56,56 @@ func NewApp(ctx context.Context, cfg *config.Config) (*App, error) {
 
 	backup, err := storage.NewFileStorage(cfg.Storage.Filepath)
 	if err != nil {
-		return nil, errors.Wrap(err, "initing backup storage")
+		return nil, log.Wrap(err, "init backup storage")
 	}
-	log.Printf("init backup storage @ %s", cfg.Storage.Filepath)
+	log.Info(ctx).Msgf("Initialized backup storage @ %s", cfg.Storage.Filepath)
 
 	var shortlinkRepo repository.ShortlinkRepo
-	shortlinkRepo, err = repository.NewPostgresRepo(ctx, cfg.PostgreSQL, backup)
+	shortlinkRepo, err = repository.NewPostgresRepo(ctx, cfg.PostgreSQL, backup, log.SubLogger("shortlink_repo"))
 	if err != nil {
-		log.Printf("error on postgres init: %s", err)
+		log.Error(ctx, err).Msg("init shortlink repo")
 		// Fallback to in-mem repo
 		shortlinkRepo = repository.NewInMemShortlinkRepo(backup)
-		log.Printf("init shortlink repo @ in-mem")
+		log.Info(ctx).Msgf("Initialized shortlink repo @ in-mem")
 	} else {
-		log.Printf("init shortlink repo @ %s", cfg.PostgreSQL.ConnString)
+		log.Info(ctx).Msgf("Initialized shortlink repo @ %s", cfg.PostgreSQL.ConnString)
 	}
 	app.repo = shortlinkRepo
 
 	err = shortlinkRepo.Restore(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "restoring from backup")
+		return nil, log.Wrap(err, "restore from backup")
 	}
-	log.Printf("restore from backup complete")
+	log.Info(ctx).Msgf("Restore from backup complete")
 
-	shortenerUC := usecase.NewShortener(cfg.Shortener, shortlinkRepo)
-	http.NewShortenerController(server, shortenerUC)
+	shortenerUC := usecase.NewShortener(cfg.Shortener, shortlinkRepo, log.SubLogger("shortener_uc"))
+	http.NewShortenerController(server, shortenerUC, log.SubLogger("shortener_controller"))
 
 	return app, nil
 }
 
-func (a *App) Run(ctx context.Context) error {
-	log.Printf("Listening on %s", a.serverAddr)
+func (a *Shortener) Run(ctx context.Context) error {
+	a.log.Info(ctx).Msgf("Listening on %s", a.serverAddr)
 	if err := a.server.Listen(a.serverAddr); err != nil && !errors.Is(err, nethttp.ErrServerClosed) {
 		return err
 	}
 	return nil
 }
 
-func (a *App) Stop(ctx context.Context) error {
+func (a *Shortener) Stop(ctx context.Context) error {
 	err := a.repo.Backup(ctx)
 	if err != nil {
-		return errors.Wrap(err, "saving links to backup")
+		return a.log.Wrap(err, "backup repo")
 	}
 
 	err = a.repo.Close(ctx)
 	if err != nil {
-		return errors.Wrap(err, "closing repo")
+		return a.log.Wrap(err, "close repo")
 	}
 
 	err = a.server.Shutdown()
 	if err != nil {
-		return errors.Wrap(err, "shutting down server")
+		return a.log.Wrap(err, "shutdown server")
 	}
 
 	return nil

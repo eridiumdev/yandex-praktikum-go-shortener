@@ -4,23 +4,27 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/entity"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/usecase"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/pkg/logger"
 )
 
 type ShortenerController struct {
 	shortener usecase.Shortener
+
+	log *logger.Logger
 }
 
-func NewShortenerController(router *fiber.App, shortener usecase.Shortener) *ShortenerController {
+func NewShortenerController(router *fiber.App, shortener usecase.Shortener, log *logger.Logger) *ShortenerController {
 	c := &ShortenerController{
 		shortener: shortener,
+		log:       log,
 	}
 
 	router.Get("/ping", c.ping)
@@ -38,13 +42,31 @@ func NewShortenerController(router *fiber.App, shortener usecase.Shortener) *Sho
 func (ctrl *ShortenerController) ping(c *fiber.Ctx) error {
 	ctx := c.Context()
 
-	err := ctrl.shortener.Ping(ctx)
-	if err != nil {
-		c.Status(ctrl.errorStatus(err))
-		return c.SendString(err.Error())
+	time.Sleep(time.Second * 3)
+	ctrl.log.Info(ctx).Msg("slept")
+
+	c.Request().MayContinue()
+
+	select {
+	case <-c.Context().Done():
+		respMsg := log.Warn(ctx).
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Int("code", 499).
+			Str("status", "Client Closed Request")
+		respMsg.Msg("Request canceled")
+		return nil
+	default:
 	}
 
+	//err := ctrl.shortener.Ping(ctx)
+	//if err != nil {
+	//	c.Status(ctrl.errorStatus(err))
+	//	return c.SendString(err.Error())
+	//}
+
 	c.Status(http.StatusOK)
+	c.SendString("MKAY")
 	return nil
 }
 
@@ -67,7 +89,7 @@ func (ctrl *ShortenerController) createShortlink(c *fiber.Ctx) error {
 	case errors.Is(err, repository.ErrURLConflict):
 		c.Status(http.StatusConflict)
 	default:
-		log.Printf("Error creating shortlink: %s", err)
+		ctrl.log.Error(ctx, err).Msg("create shortlink")
 		c.Status(ctrl.errorStatus(err))
 		return c.SendString(err.Error())
 	}
@@ -96,7 +118,7 @@ func (ctrl *ShortenerController) shortenLink(c *fiber.Ctx) error {
 	var req shortenLinkRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		log.Printf("Error parsing JSON request: %s", err)
+		ctrl.log.Error(ctx, err).Msg("parse JSON request")
 		c.Status(http.StatusBadRequest)
 		return c.SendString(err.Error())
 	}
@@ -109,7 +131,7 @@ func (ctrl *ShortenerController) shortenLink(c *fiber.Ctx) error {
 	case errors.Is(err, repository.ErrURLConflict):
 		c.Status(http.StatusConflict)
 	default:
-		log.Printf("Error creating shortlink: %s", err)
+		ctrl.log.Error(ctx, err).Msg("create shortlink")
 		c.Status(ctrl.errorStatus(err))
 		return c.SendString(err.Error())
 	}
@@ -117,7 +139,7 @@ func (ctrl *ShortenerController) shortenLink(c *fiber.Ctx) error {
 	result := shortenLinkResponse{Result: link.Short}
 	resp, err := json.Marshal(result)
 	if err != nil {
-		log.Printf("Error preparing JSON response: %s", err)
+		ctrl.log.Error(ctx, err).Msg("prepare JSON response")
 		c.Status(http.StatusInternalServerError)
 		return c.SendString(err.Error())
 	}
@@ -154,7 +176,7 @@ func (ctrl *ShortenerController) shortenLinksBatch(c *fiber.Ctx) error {
 	var req shortenLinksBatchRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		log.Printf("Error parsing JSON request: %s", err)
+		ctrl.log.Error(ctx, err).Msg("parse JSON request")
 		c.Status(http.StatusBadRequest)
 		return c.SendString(err.Error())
 	}
@@ -173,7 +195,7 @@ func (ctrl *ShortenerController) shortenLinksBatch(c *fiber.Ctx) error {
 		Links:   data,
 	})
 	if err != nil {
-		log.Printf("Error creating shortlink: %s", err)
+		ctrl.log.Error(ctx, err).Msg("create shortlink")
 		c.Status(ctrl.errorStatus(err))
 		return c.SendString(err.Error())
 	}
@@ -188,7 +210,7 @@ func (ctrl *ShortenerController) shortenLinksBatch(c *fiber.Ctx) error {
 
 	resp, err := json.Marshal(result)
 	if err != nil {
-		log.Printf("Error preparing JSON response: %s", err)
+		ctrl.log.Error(ctx, err).Msg("prepare JSON response")
 		c.Status(http.StatusInternalServerError)
 		return c.SendString(err.Error())
 	}
@@ -210,7 +232,7 @@ func (ctrl *ShortenerController) getShortlink(c *fiber.Ctx) error {
 
 	link, err := ctrl.shortener.GetShortlink(ctx, linkUID)
 	if err != nil {
-		log.Printf("Error getting shortlink: %s", err)
+		ctrl.log.Error(ctx, err).Msg("get shortlink")
 		c.Status(ctrl.errorStatus(err))
 		return c.SendString(err.Error())
 	}
@@ -243,7 +265,7 @@ func (ctrl *ShortenerController) listShortlinks(c *fiber.Ctx) error {
 
 	links, err := ctrl.shortener.ListUserShortlinks(ctx, userUID)
 	if err != nil {
-		log.Printf("Error listing shortlinks: %s", err)
+		ctrl.log.Error(ctx, err).Msg("list user shortlinks")
 		c.Status(ctrl.errorStatus(err))
 		return c.SendString(err.Error())
 	}
@@ -263,7 +285,7 @@ func (ctrl *ShortenerController) listShortlinks(c *fiber.Ctx) error {
 
 	resp, err := json.Marshal(result)
 	if err != nil {
-		log.Printf("Error preparing JSON response: %s", err)
+		ctrl.log.Error(ctx, err).Msg("prepare JSON response")
 		c.Status(http.StatusInternalServerError)
 		return c.SendString(err.Error())
 	}

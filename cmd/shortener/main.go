@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"log"
+	"errors"
+	stdlog "log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/config"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/app"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/pkg/logger"
 )
 
 func main() {
@@ -17,36 +19,38 @@ func main() {
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Error loading config: %s", err)
+		stdlog.Fatalf("Error loading config: %s", err)
 	}
 
-	a, err := app.NewApp(ctx, cfg)
+	log := logger.NewZerologLogger(ctx, "app", cfg.Logger.Level, cfg.Logger.Pretty, os.Stdout)
+
+	appl, err := app.NewShortener(ctx, cfg, log)
 	if err != nil {
-		log.Fatalf("Error initing app: %s", err)
+		log.Fatal(ctx, err).Msg("Init app")
 	}
 
 	go func() {
-		log.Printf("Starting app...")
-		err := a.Run(ctx)
+		log.Info(ctx).Msg("Starting app...")
+		err := appl.Run(ctx)
 		if err != nil {
-			log.Fatalf("Error running app: %s", err)
+			log.Fatal(ctx, err).Msg("Run app")
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-quit
-	log.Printf("OS signal received: %s", sig)
+	log.Info(ctx).Msgf("OS signal received: %s", sig)
 
 	time.AfterFunc(cfg.App.ShutdownTimeout, func() {
-		log.Fatalf("App force-stopped (shutdown timeout)")
+		log.Fatal(ctx, errors.New("shutdown timeout")).Msg("App force-stopped")
 	})
 
-	log.Printf("Stopping app...")
-	err = a.Stop(ctx)
+	log.Info(ctx).Msg("Stopping app...")
+	err = appl.Stop(ctx)
 	if err != nil {
-		log.Fatalf("Error stopping app: %s", err)
+		log.Fatal(ctx, err).Msg("Stop app")
 	}
 
-	log.Printf("App stopped")
+	log.Info(ctx).Msg("App stopped")
 }

@@ -10,6 +10,7 @@ import (
 type (
 	Config struct {
 		App        App
+		Logger     Logger
 		Server     Server
 		PostgreSQL PostgreSQL
 		Storage    Storage
@@ -18,6 +19,10 @@ type (
 	App struct {
 		ShutdownTimeout time.Duration
 		AuthSecret      string
+	}
+	Logger struct {
+		Level  string
+		Pretty bool
 	}
 	Server struct {
 		Addr string `env:"SERVER_ADDRESS"`
@@ -41,6 +46,10 @@ func Load() (*Config, error) {
 		App: App{
 			ShutdownTimeout: time.Second * 3,
 			AuthSecret:      "U2ahPqQAQiWUxfdT7SDBNFrgcGFkJ6Tq",
+		},
+		Logger: Logger{
+			Level:  "debug",
+			Pretty: true,
 		},
 		PostgreSQL: PostgreSQL{
 			PingTimeout:    time.Second,

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log"
 	"strings"
 
@@ -10,11 +11,11 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/pkg/errors"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/config"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/entity"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/storage"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/pkg/logger"
 )
 
 var (
@@ -29,45 +30,47 @@ type PostgresRepo struct {
 	cfg    config.PostgreSQL
 	db     *sql.DB
 	backup storage.Storage
+	log    *logger.Logger
 }
 
-func NewPostgresRepo(ctx context.Context, cfg config.PostgreSQL, backup storage.Storage) (*PostgresRepo, error) {
+func NewPostgresRepo(ctx context.Context, cfg config.PostgreSQL, backup storage.Storage, log *logger.Logger) (*PostgresRepo, error) {
 	db, err := sql.Open("pgx", cfg.ConnString)
 	if err != nil {
-		return nil, errors.Wrapf(err, "[postgres] open")
+		return nil, log.Wrap(err, "open")
 	}
 
 	r := &PostgresRepo{
 		cfg:    cfg,
 		db:     db,
 		backup: backup,
+		log:    log,
 	}
 
 	err = r.Ping(context.Background())
 	if err != nil {
-		return nil, errors.Wrapf(err, "[postgres] ping")
+		return nil, log.Wrap(err, "ping")
 	}
 
 	// Migrations
 	migrator, err := migrate.New("file://"+cfg.MigrationsPath, cfg.ConnString)
 	if err != nil {
-		return nil, errors.Wrapf(err, "[postgres] init migrator")
+		return nil, log.Wrap(err, "init migrator")
 	}
 
 	err = migrator.Up()
 	if err == nil {
-		log.Printf("[postgres] migrations: done")
+		log.Info(ctx).Msg("Migrations: done")
 	} else {
 		if !errors.Is(err, migrate.ErrNoChange) {
-			return nil, errors.Wrapf(err, "[postgres] migrations")
+			return nil, log.Wrap(err, "migrations")
 		}
-		log.Printf("[postgres] migrations: no changes")
+		log.Info(ctx).Msg("Migrations: no changes")
 	}
 
 	// Statements
 	err = r.initStatements(ctx)
 	if err != nil {
-		return nil, errors.Wrapf(err, "[postgres] init statements")
+		return nil, log.Wrap(err, "init statements")
 	}
 
 	return r, nil
@@ -79,7 +82,7 @@ func (r *PostgresRepo) Ping(ctx context.Context) error {
 
 	err := r.db.PingContext(cancelCtx)
 	if err != nil {
-		return errors.Wrapf(err, "[postgres] ping")
+		return r.log.Wrap(err, "ping")
 	}
 	return nil
 }
@@ -91,7 +94,7 @@ func (r *PostgresRepo) SaveShortlink(ctx context.Context, link *entity.Shortlink
 	row := saveShortlinkStmt.QueryRowContext(ctx, link.UID, link.UserUID, link.Short, link.Long, link.CorrelationID)
 	err := row.Scan(&result.UID, &result.UserUID, &result.Short, &result.Long, &result.CorrelationID, &conflict)
 	if err != nil {
-		return nil, errors.Wrapf(err, "[postgres] insert")
+		return nil, r.log.Wrap(err, "insert")
 	}
 	if conflict {
 		return result, ErrURLConflict
@@ -102,7 +105,7 @@ func (r *PostgresRepo) SaveShortlink(ctx context.Context, link *entity.Shortlink
 func (r *PostgresRepo) SaveShortlinks(ctx context.Context, links []*entity.Shortlink) ([]*entity.Shortlink, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, errors.Wrapf(err, "[postgres] begin tx")
+		return nil, r.log.Wrap(err, "begin tx")
 	}
 
 	var result []*entity.Shortlink
@@ -117,9 +120,9 @@ func (r *PostgresRepo) SaveShortlinks(ctx context.Context, links []*entity.Short
 		if err != nil {
 			rollbackErr := tx.Rollback()
 			if rollbackErr != nil {
-				log.Printf("[postgres] rollback after insert: %s", err)
+				log.Printf("rollback after insert: %s", err)
 			}
-			return nil, errors.Wrapf(err, "[postgres] insert")
+			return nil, r.log.Wrap(err, "insert")
 		}
 
 		result = append(result, resultLink)
@@ -127,7 +130,7 @@ func (r *PostgresRepo) SaveShortlinks(ctx context.Context, links []*entity.Short
 
 	err = tx.Commit()
 	if err != nil {
-		return nil, errors.Wrapf(err, "[postgres] commit after insert")
+		return nil, r.log.Wrap(err, "commit after insert")
 	}
 
 	return result, nil
@@ -150,7 +153,7 @@ func (r *PostgresRepo) FindShortlink(ctx context.Context, userUID, linkUID strin
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, errors.Wrapf(err, "[postgres] scan")
+		return nil, r.log.Wrap(err, "scan")
 	}
 
 	link.CorrelationID = corrID.String
@@ -166,7 +169,7 @@ func (r *PostgresRepo) FindShortlinks(ctx context.Context, linkUIDs []string) ([
 		if errors.Is(err, sql.ErrNoRows) {
 			return links, nil
 		}
-		return nil, errors.Wrapf(err, "[postgres] select")
+		return nil, r.log.Wrap(err, "select")
 	}
 	defer rows.Close()
 
@@ -175,7 +178,7 @@ func (r *PostgresRepo) FindShortlinks(ctx context.Context, linkUIDs []string) ([
 		var corrID sql.NullString
 		err := rows.Scan(&link.UID, &link.UserUID, &link.Short, &link.Long, &corrID)
 		if err != nil {
-			return nil, errors.Wrapf(err, "[postgres] scan")
+			return nil, r.log.Wrap(err, "scan")
 		}
 		link.CorrelationID = corrID.String
 		links = append(links, link)
@@ -183,7 +186,7 @@ func (r *PostgresRepo) FindShortlinks(ctx context.Context, linkUIDs []string) ([
 
 	err = rows.Err()
 	if err != nil {
-		return nil, errors.Wrapf(err, "[postgres] rows next")
+		return nil, r.log.Wrap(err, "rows next")
 	}
 
 	return links, nil
@@ -197,7 +200,7 @@ func (r *PostgresRepo) GetShortlinks(ctx context.Context, userUID string) ([]*en
 		if errors.Is(err, sql.ErrNoRows) {
 			return links, nil
 		}
-		return nil, errors.Wrapf(err, "[postgres] select")
+		return nil, r.log.Wrap(err, "select")
 	}
 	defer rows.Close()
 
@@ -206,7 +209,7 @@ func (r *PostgresRepo) GetShortlinks(ctx context.Context, userUID string) ([]*en
 		var corrID sql.NullString
 		err := rows.Scan(&link.UID, &link.UserUID, &link.Short, &link.Long, &corrID)
 		if err != nil {
-			return nil, errors.Wrapf(err, "[postgres] scan")
+			return nil, r.log.Wrap(err, "scan")
 		}
 		link.CorrelationID = corrID.String
 		links = append(links, link)
@@ -214,7 +217,7 @@ func (r *PostgresRepo) GetShortlinks(ctx context.Context, userUID string) ([]*en
 
 	err = rows.Err()
 	if err != nil {
-		return nil, errors.Wrapf(err, "[postgres] rows next")
+		return nil, r.log.Wrap(err, "rows next")
 	}
 
 	return links, nil
@@ -231,17 +234,17 @@ func (r *PostgresRepo) Restore(ctx context.Context) error {
 func (r *PostgresRepo) Close(ctx context.Context) error {
 	err := r.backup.Close(ctx)
 	if err != nil {
-		return errors.Wrapf(err, "[postgres] close backup")
+		return r.log.Wrap(err, "close backup")
 	}
 
 	err = r.closeStatements(ctx)
 	if err != nil {
-		return errors.Wrapf(err, "[postgres] close statements")
+		return r.log.Wrap(err, "close statements")
 	}
 
 	err = r.db.Close()
 	if err != nil {
-		return errors.Wrapf(err, "[postgres] close db")
+		return r.log.Wrap(err, "close db")
 	}
 
 	return nil
@@ -256,23 +259,23 @@ func (r *PostgresRepo) initStatements(ctx context.Context) error {
 			", existing AS (SELECT link_uid, user_uid, short, long, correlation_id FROM shortlinks WHERE long = $4)"+
 			" SELECT *, true AS conflict FROM existing UNION SELECT *, false AS conflict FROM inserted")
 	if err != nil {
-		return errors.Wrapf(err, "[postgres] prepare saveShortlinkStmt")
+		return r.log.Wrap(err, "prepare saveShortlinkStmt")
 	}
 	findShortlinkStmt, err = r.db.PrepareContext(ctx, "SELECT link_uid, user_uid, short, long, correlation_id FROM shortlinks WHERE link_uid = $1")
 	if err != nil {
-		return errors.Wrapf(err, "[postgres] prepare findShortlinkStmt")
+		return r.log.Wrap(err, "prepare findShortlinkStmt")
 	}
 	findShortlinksStmt, err = r.db.PrepareContext(ctx, "SELECT link_uid, user_uid, short, long, correlation_id FROM shortlinks WHERE link_uid IN ($1)")
 	if err != nil {
-		return errors.Wrapf(err, "[postgres] prepare findShortlinksStmt")
+		return r.log.Wrap(err, "prepare findShortlinksStmt")
 	}
 	findShortlinkByUserStmt, err = r.db.PrepareContext(ctx, "SELECT link_uid, user_uid, short, long, correlation_id FROM shortlinks WHERE link_uid = $1 AND user_uid = $2")
 	if err != nil {
-		return errors.Wrapf(err, "[postgres] prepare findShortlinkByUserStmt")
+		return r.log.Wrap(err, "prepare findShortlinkByUserStmt")
 	}
 	getShortlinksByUserStmt, err = r.db.PrepareContext(ctx, "SELECT link_uid, user_uid, short, long, correlation_id FROM shortlinks WHERE user_uid = $1")
 	if err != nil {
-		return errors.Wrapf(err, "[postgres] prepare getShortlinksByUserStmt")
+		return r.log.Wrap(err, "prepare getShortlinksByUserStmt")
 	}
 
 	return nil
@@ -280,19 +283,19 @@ func (r *PostgresRepo) initStatements(ctx context.Context) error {
 
 func (r *PostgresRepo) closeStatements(ctx context.Context) error {
 	if err := saveShortlinkStmt.Close(); err != nil {
-		return errors.Wrapf(err, "[postgres] close saveShortlinkStmt")
+		return r.log.Wrap(err, "close saveShortlinkStmt")
 	}
 	if err := findShortlinkStmt.Close(); err != nil {
-		return errors.Wrapf(err, "[postgres] close findShortlinkStmt")
+		return r.log.Wrap(err, "close findShortlinkStmt")
 	}
 	if err := findShortlinksStmt.Close(); err != nil {
-		return errors.Wrapf(err, "[postgres] close findShortlinksStmt")
+		return r.log.Wrap(err, "close findShortlinksStmt")
 	}
 	if err := findShortlinkByUserStmt.Close(); err != nil {
-		return errors.Wrapf(err, "[postgres] close findShortlinkByUserStmt")
+		return r.log.Wrap(err, "close findShortlinkByUserStmt")
 	}
 	if err := getShortlinksByUserStmt.Close(); err != nil {
-		return errors.Wrapf(err, "[postgres] close getShortlinksByUserStmt")
+		return r.log.Wrap(err, "close getShortlinksByUserStmt")
 	}
 	return nil
 }

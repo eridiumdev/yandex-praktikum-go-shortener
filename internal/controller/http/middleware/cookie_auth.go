@@ -11,6 +11,7 @@ import (
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/entity"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/crypto"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/pkg/logger"
 )
 
 const (
@@ -24,7 +25,7 @@ type (
 	}
 )
 
-func CookieAuth(cfg CookieAuthConfig) (fiber.Handler, error) {
+func CookieAuth(cfg CookieAuthConfig, log *logger.Logger) (fiber.Handler, error) {
 	return func(c *fiber.Ctx) error {
 		var token *entity.AuthToken
 		var err error
@@ -38,7 +39,7 @@ func CookieAuth(cfg CookieAuthConfig) (fiber.Handler, error) {
 		if token == nil {
 			token, err = generateToken()
 			if err != nil {
-				return errors.Wrapf(err, "[cookie-auth] generate token")
+				return log.Wrap(err, "generate token")
 			}
 		}
 
@@ -55,7 +56,7 @@ func CookieAuth(cfg CookieAuthConfig) (fiber.Handler, error) {
 		// Encrypt the token
 		encrypted, err := cfg.Cipher.Encrypt(c.Context(), token)
 		if err != nil {
-			return errors.Wrapf(err, "[cookie-auth] encrypt token")
+			return log.Wrap(err, "encrypt token")
 		}
 
 		// Add encrypted token as a cookie
@@ -74,7 +75,7 @@ func generateToken() (*entity.AuthToken, error) {
 	userUID := make([]byte, 16)
 	_, err := rand.Read(userUID)
 	if err != nil {
-		return nil, errors.Wrapf(err, "preparing random bytes for userUID")
+		return nil, errors.Wrap(err, "prepare random bytes for userUID")
 	}
 
 	return &entity.AuthToken{
