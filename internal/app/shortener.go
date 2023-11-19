@@ -5,8 +5,8 @@ import (
 	"errors"
 	nethttp "net/http"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/compress"
+	"github.com/gin-contrib/gzip"
+	"github.com/gin-gonic/gin"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/config"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/controller/http"
@@ -19,11 +19,9 @@ import (
 )
 
 type Shortener struct {
-	server     *fiber.App
-	serverAddr string
-
-	repo repository.ShortlinkRepo
-	log  *logger.Logger
+	server *nethttp.Server
+	repo   repository.ShortlinkRepo
+	log    *logger.Logger
 }
 
 func NewShortener(ctx context.Context, cfg *config.Config, log *logger.Logger) (*Shortener, error) {
@@ -31,28 +29,35 @@ func NewShortener(ctx context.Context, cfg *config.Config, log *logger.Logger) (
 		log: log,
 	}
 
-	server := fiber.New()
-	server.Use(compress.New(compress.Config{
-		Level: compress.LevelBestSpeed,
-	}))
-	server.Use(middleware.Logger(log.SubLogger("http_requests")))
+	handler := gin.New()
+	handler.ContextWithFallback = true
+
+	handler.Use(gin.Recovery())
+	handler.Use(gzip.Gzip(gzip.BestSpeed))
+	handler.Use(middleware.RequestID(log))
+	handler.Use(middleware.Logger(log.SubLogger("http_requests")))
 
 	cipher, err := crypto.NewAES256(cfg.App.AuthSecret, log)
 	if err != nil {
 		return nil, log.Wrap(err, "init crypto cipher")
 	}
 
-	authMiddleware, err := middleware.CookieAuth(middleware.CookieAuthConfig{
+	authMiddleware := middleware.CookieAuth(middleware.CookieAuthConfig{
 		Cipher: cipher,
 	}, log)
 	if err != nil {
 		return nil, log.Wrap(err, "init auth middleware")
 	}
 
-	server.Use(authMiddleware)
+	handler.Use(authMiddleware)
 
-	app.server = server
-	app.serverAddr = cfg.Server.Addr
+	handler.Handler()
+	app.server = &nethttp.Server{
+		Handler: handler,
+		//ReadTimeout:  60 * time.Second,
+		//WriteTimeout: 60 * time.Second,
+		Addr: cfg.Server.Addr,
+	}
 
 	backup, err := storage.NewFileStorage(cfg.Storage.Filepath)
 	if err != nil {
@@ -79,14 +84,14 @@ func NewShortener(ctx context.Context, cfg *config.Config, log *logger.Logger) (
 	log.Info(ctx).Msgf("Restore from backup complete")
 
 	shortenerUC := usecase.NewShortener(cfg.Shortener, shortlinkRepo, log.SubLogger("shortener_uc"))
-	http.NewShortenerController(server, shortenerUC, log.SubLogger("shortener_controller"))
+	http.NewShortenerController(handler, shortenerUC, log.SubLogger("shortener_controller"))
 
 	return app, nil
 }
 
 func (a *Shortener) Run(ctx context.Context) error {
-	a.log.Info(ctx).Msgf("Listening on %s", a.serverAddr)
-	if err := a.server.Listen(a.serverAddr); err != nil && !errors.Is(err, nethttp.ErrServerClosed) {
+	a.log.Info(ctx).Msgf("Listening on %s", a.server.Addr)
+	if err := a.server.ListenAndServe(); err != nil && !errors.Is(err, nethttp.ErrServerClosed) {
 		return err
 	}
 	return nil
@@ -103,7 +108,7 @@ func (a *Shortener) Stop(ctx context.Context) error {
 		return a.log.Wrap(err, "close repo")
 	}
 
-	err = a.server.Shutdown()
+	err = a.server.Shutdown(ctx)
 	if err != nil {
 		return a.log.Wrap(err, "shutdown server")
 	}

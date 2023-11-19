@@ -1,15 +1,24 @@
 package middleware
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"context"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/pkg/logger"
 )
 
-func RequestID(log *logger.Logger) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		// Pre-processing
+func RequestID(log *logger.Logger) gin.HandlerFunc {
+	log.RegisterHook(func(ctx context.Context) (string, string) {
+		if val, ok := ctx.Value("request_id").(string); ok {
+			return "request_id", val
+		}
+		return "request_id", ""
+	})
 
-		return nil
+	return func(c *gin.Context) {
+		c.Set("request_id", uuid.NewString())
+		c.Next()
 	}
 }

@@ -71,11 +71,8 @@ func (l *Logger) Fatal(ctx context.Context, err error) *zerolog.Event {
 	return l.enrich(l.logger.Fatal().Ctx(ctx).Err(err))
 }
 
-func (l *Logger) SubLogger(label string) *Logger {
-	return &Logger{
-		logger: l.logger,
-		label:  label,
-	}
+func (l *Logger) enrich(e *zerolog.Event) *zerolog.Event {
+	return e.Str("label", l.label)
 }
 
 func (l *Logger) Wrap(err error, msg string) error {
@@ -86,6 +83,23 @@ func (l *Logger) Wrapf(err error, format string, v ...any) error {
 	return fmt.Errorf("[%s] %s - %w", l.label, fmt.Sprintf(format, v...), err)
 }
 
-func (l *Logger) enrich(e *zerolog.Event) *zerolog.Event {
-	return e.Str("label", l.label)
+func (l *Logger) SubLogger(label string) *Logger {
+	return &Logger{
+		logger: l.logger,
+		label:  label,
+	}
+}
+
+func (l *Logger) RegisterHook(fn func(ctx context.Context) (string, string)) {
+	l.logger = l.logger.Hook(hook{fn: fn})
+}
+
+type hook struct {
+	fn func(ctx context.Context) (string, string)
+}
+
+func (h hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
+	ctx := e.GetCtx()
+	key, val := h.fn(ctx)
+	e.Str(key, val)
 }

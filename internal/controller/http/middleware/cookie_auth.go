@@ -1,12 +1,12 @@
 package middleware
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"net/http"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/entity"
@@ -25,49 +25,45 @@ type (
 	}
 )
 
-func CookieAuth(cfg CookieAuthConfig, log *logger.Logger) (fiber.Handler, error) {
-	return func(c *fiber.Ctx) error {
+func CookieAuth(cfg CookieAuthConfig, log *logger.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		var token *entity.AuthToken
 		var err error
 
 		// Pre-processing
-		cookie := c.Cookies(CookieAuthName)
-		if cookie != "" {
-			// Ignore the error and generate new token
-			token, _ = cfg.Cipher.Decrypt(c.Context(), cookie)
+		cookie, err := c.Cookie(CookieAuthName)
+		if err == nil && cookie != "" {
+			// Get token from cookie
+			token, _ = cfg.Cipher.Decrypt(c, cookie)
 		}
 		if token == nil {
+			// Generate new
 			token, err = generateToken()
 			if err != nil {
-				return log.Wrap(err, "generate token")
+				log.Error(c, err).Msg("generate cookie-auth token")
+				c.Status(http.StatusInternalServerError)
+				return
 			}
 		}
 
 		// Add token to request context
-		c.SetUserContext(
-			context.WithValue(c.UserContext(), entity.AuthTokenCtxKey, token))
+		c.Set(string(entity.AuthTokenCtxKey), token)
 
 		// Go to next middleware/handler
-		if err := c.Next(); err != nil {
-			return err
-		}
+		c.Next()
 
 		// Post-processing
 		// Encrypt the token
-		encrypted, err := cfg.Cipher.Encrypt(c.Context(), token)
+		encrypted, err := cfg.Cipher.Encrypt(c, token)
 		if err != nil {
-			return log.Wrap(err, "encrypt token")
+			log.Error(c, err).Msg("encrypt cookie-auth token")
+			c.Status(http.StatusInternalServerError)
+			return
 		}
 
 		// Add encrypted token as a cookie
-		c.Cookie(&fiber.Cookie{
-			Name:    CookieAuthName,
-			Value:   encrypted,
-			Expires: time.Now().Add(CookieAuthAge),
-		})
-
-		return nil
-	}, nil
+		c.SetCookie(CookieAuthName, encrypted, int(CookieAuthAge.Seconds()), "", "", false, false)
+	}
 }
 
 func generateToken() (*entity.AuthToken, error) {

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,9 +21,12 @@ import (
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/crypto"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/usecase"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/pkg/logger"
 )
 
 const dummyUserID = "user1"
+
+var log = logger.NewMockLogger()
 
 func TestCreateShortlink(t *testing.T) {
 	type want struct {
@@ -61,24 +64,13 @@ func TestCreateShortlink(t *testing.T) {
 			srv, err := prepareRouter()
 			require.NoError(t, err)
 
-			repo := repository.NewInMemShortlinkRepo(nil)
-			uc := usecase.NewShortener(config.Shortener{
-				BaseURL:       "http://127.0.0.1",
-				DefaultLength: 5,
-			}, repo)
-			NewShortenerController(srv, uc)
+			prepareController(srv, nil)
 
 			reqBody := bytes.NewBufferString(tt.body)
-			r := httptest.NewRequest(http.MethodPost, "/", reqBody)
-			addAuthCookie(r, dummyUserID)
+			req := httptest.NewRequest(http.MethodPost, "/", reqBody)
+			addAuthCookie(req, dummyUserID)
 
-			resp, err := srv.Test(r)
-			require.NoError(t, err)
-
-			body, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-
-			err = resp.Body.Close()
+			body, resp, err := sendRequest(srv, req)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
@@ -147,25 +139,14 @@ func TestShortenLink(t *testing.T) {
 			srv, err := prepareRouter()
 			require.NoError(t, err)
 
-			repo := repository.NewInMemShortlinkRepo(nil)
-			uc := usecase.NewShortener(config.Shortener{
-				BaseURL:       "http://127.0.0.1",
-				DefaultLength: 5,
-			}, repo)
-			NewShortenerController(srv, uc)
+			prepareController(srv, nil)
 
 			reqBody := bytes.NewBufferString(tt.req)
-			r := httptest.NewRequest(http.MethodPost, "/api/shorten", reqBody)
-			r.Header.Set("Content-Type", "application/json")
-			addAuthCookie(r, dummyUserID)
+			req := httptest.NewRequest(http.MethodPost, "/api/shorten", reqBody)
+			req.Header.Set("Content-Type", "application/json")
+			addAuthCookie(req, dummyUserID)
 
-			resp, err := srv.Test(r)
-			require.NoError(t, err)
-
-			body, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-
-			err = resp.Body.Close()
+			body, resp, err := sendRequest(srv, req)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
@@ -217,20 +198,20 @@ func TestGetShortlink(t *testing.T) {
 		id   string
 		want want
 	}{
-		//{
-		//	name: "empty id",
-		//	id:   "",
-		//	want: want{
-		//		code: 405,
-		//	},
-		//},
-		//{
-		//	name: "not found",
-		//	id:   "link3",
-		//	want: want{
-		//		code: 404,
-		//	},
-		//},
+		{
+			name: "empty id",
+			id:   "",
+			want: want{
+				code: 404,
+			},
+		},
+		{
+			name: "not found",
+			id:   "link3",
+			want: want{
+				code: 404,
+			},
+		},
 		{
 			name: "ok",
 			id:   "link2",
@@ -244,20 +225,14 @@ func TestGetShortlink(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			srv, err := prepareRouter()
 			require.NoError(t, err)
+
+			prepareController(srv, repo)
+
+			req := httptest.NewRequest(http.MethodGet, "/"+tt.id, nil)
+			addAuthCookie(req, dummyUserID)
+
+			_, resp, err := sendRequest(srv, req)
 			require.NoError(t, err)
-
-			uc := usecase.NewShortener(config.Shortener{
-				BaseURL:       "http://127.0.0.1",
-				DefaultLength: 5,
-			}, repo)
-			NewShortenerController(srv, uc)
-
-			r := httptest.NewRequest(http.MethodGet, "/"+tt.id, nil)
-			addAuthCookie(r, dummyUserID)
-
-			resp, err := srv.Test(r)
-			require.NoError(t, err)
-			defer resp.Body.Close()
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
 
@@ -269,19 +244,44 @@ func TestGetShortlink(t *testing.T) {
 	}
 }
 
-func prepareRouter() (*fiber.App, error) {
-	srv := fiber.New()
+func prepareController(handler *gin.Engine, repo repository.ShortlinkRepo) {
+	if repo == nil {
+		repo = repository.NewInMemShortlinkRepo(nil)
+	}
+	uc := usecase.NewShortener(config.Shortener{
+		BaseURL:       "http://127.0.0.1",
+		DefaultLength: 5,
+	}, repo, log)
+
+	NewShortenerController(handler, uc, log)
+}
+
+func prepareRouter() (*gin.Engine, error) {
+	gin.SetMode(gin.ReleaseMode)
+	handler := gin.New()
+	handler.ContextWithFallback = true
 
 	mockCipher := crypto.NewMock()
-	authMiddleware, err := middleware.CookieAuth(middleware.CookieAuthConfig{
+	authMiddleware := middleware.CookieAuth(middleware.CookieAuthConfig{
 		Cipher: mockCipher,
-	})
+	}, log)
+
+	handler.Use(authMiddleware)
+	return handler, nil
+}
+
+func sendRequest(srv http.Handler, req *http.Request) ([]byte, *http.Response, error) {
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	body, err := io.ReadAll(w.Result().Body)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	srv.Use(authMiddleware)
-	return srv, nil
+	err = w.Result().Body.Close()
+
+	return body, w.Result(), err
 }
 
 func addAuthCookie(r *http.Request, userUID string) {
