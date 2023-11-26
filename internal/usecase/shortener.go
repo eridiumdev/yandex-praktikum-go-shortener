@@ -212,3 +212,14 @@ func (uc *ShortenerUC) GetUserShortlink(ctx context.Context, userUID, linkUID st
 func (uc *ShortenerUC) ListUserShortlinks(ctx context.Context, userUID string) ([]*entity.Shortlink, error) {
 	return uc.repo.GetShortlinks(ctx, userUID)
 }
+
+func (uc *ShortenerUC) DeleteUserShortlinks(ctx context.Context, userUID string, linkUIDs []string) error {
+	go func(ctx context.Context) {
+		err := uc.repo.DeleteShortlinks(ctx, userUID, linkUIDs)
+		if err != nil {
+			uc.log.Error(ctx, err).Msgf("delete shortlinks")
+		}
+	}(context.WithoutCancel(ctx))
+
+	return nil
+}

@@ -13,6 +13,7 @@ type ShortlinkRepo interface {
 	SaveShortlinks(ctx context.Context, links []*entity.Shortlink) ([]*entity.Shortlink, error)
 	FindShortlinks(ctx context.Context, linkUIDs []string) ([]*entity.Shortlink, error)
 	GetShortlinks(ctx context.Context, userUID string) ([]*entity.Shortlink, error)
+	DeleteShortlinks(ctx context.Context, userUID string, linkUIDs []string) error
 
 	Ping(ctx context.Context) error
 

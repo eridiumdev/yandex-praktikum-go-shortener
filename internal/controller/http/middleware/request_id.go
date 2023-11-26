@@ -14,7 +14,7 @@ func RequestID(log *logger.Logger) gin.HandlerFunc {
 		if val, ok := ctx.Value("request_id").(string); ok {
 			return "request_id", val
 		}
-		return "request_id", ""
+		return "", ""
 	})
 
 	return func(c *gin.Context) {

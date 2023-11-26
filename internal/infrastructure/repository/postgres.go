@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"strings"
 
@@ -148,7 +149,7 @@ func (r *PostgresRepo) FindShortlink(ctx context.Context, userUID, linkUID strin
 	link := new(entity.Shortlink)
 	var corrID sql.NullString
 
-	err := row.Scan(&link.UID, &link.UserUID, &link.Short, &link.Long, &corrID)
+	err := row.Scan(&link.UID, &link.UserUID, &link.Short, &link.Long, &link.Deleted, &corrID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -176,7 +177,7 @@ func (r *PostgresRepo) FindShortlinks(ctx context.Context, linkUIDs []string) ([
 	for rows.Next() {
 		link := new(entity.Shortlink)
 		var corrID sql.NullString
-		err := rows.Scan(&link.UID, &link.UserUID, &link.Short, &link.Long, &corrID)
+		err := rows.Scan(&link.UID, &link.UserUID, &link.Short, &link.Long, &link.Deleted, &corrID)
 		if err != nil {
 			return nil, r.log.Wrap(err, "scan")
 		}
@@ -223,6 +224,28 @@ func (r *PostgresRepo) GetShortlinks(ctx context.Context, userUID string) ([]*en
 	return links, nil
 }
 
+func (r *PostgresRepo) DeleteShortlinks(ctx context.Context, userUID string, linkUIDs []string) error {
+	query := "UPDATE shortlinks SET deleted = true WHERE user_uid = $1 AND link_uid IN ("
+	args := make([]any, len(linkUIDs)+1)
+	args[0] = userUID
+
+	for i := 0; i < len(linkUIDs); i++ {
+		if i > 0 {
+			query += ", "
+		}
+		query += fmt.Sprintf("$%d", i+2)
+		args[i+1] = linkUIDs[i]
+	}
+	query += ")"
+
+	_, err := r.db.ExecContext(ctx, query, args...)
+
+	if err != nil {
+		return r.log.Wrap(err, "update shortlinks deleted flag")
+	}
+	return nil
+}
+
 func (r *PostgresRepo) Backup(ctx context.Context) error {
 	return nil
 }
@@ -261,19 +284,19 @@ func (r *PostgresRepo) initStatements(ctx context.Context) error {
 	if err != nil {
 		return r.log.Wrap(err, "prepare saveShortlinkStmt")
 	}
-	findShortlinkStmt, err = r.db.PrepareContext(ctx, "SELECT link_uid, user_uid, short, long, correlation_id FROM shortlinks WHERE link_uid = $1")
+	findShortlinkStmt, err = r.db.PrepareContext(ctx, "SELECT link_uid, user_uid, short, long, deleted, correlation_id FROM shortlinks WHERE link_uid = $1")
 	if err != nil {
 		return r.log.Wrap(err, "prepare findShortlinkStmt")
 	}
-	findShortlinksStmt, err = r.db.PrepareContext(ctx, "SELECT link_uid, user_uid, short, long, correlation_id FROM shortlinks WHERE link_uid IN ($1)")
+	findShortlinksStmt, err = r.db.PrepareContext(ctx, "SELECT link_uid, user_uid, short, long, deleted, correlation_id FROM shortlinks WHERE link_uid IN ($1)")
 	if err != nil {
 		return r.log.Wrap(err, "prepare findShortlinksStmt")
 	}
-	findShortlinkByUserStmt, err = r.db.PrepareContext(ctx, "SELECT link_uid, user_uid, short, long, correlation_id FROM shortlinks WHERE link_uid = $1 AND user_uid = $2")
+	findShortlinkByUserStmt, err = r.db.PrepareContext(ctx, "SELECT link_uid, user_uid, short, long, correlation_id FROM shortlinks WHERE link_uid = $1 AND user_uid = $2 AND deleted = false")
 	if err != nil {
 		return r.log.Wrap(err, "prepare findShortlinkByUserStmt")
 	}
-	getShortlinksByUserStmt, err = r.db.PrepareContext(ctx, "SELECT link_uid, user_uid, short, long, correlation_id FROM shortlinks WHERE user_uid = $1")
+	getShortlinksByUserStmt, err = r.db.PrepareContext(ctx, "SELECT link_uid, user_uid, short, long, correlation_id FROM shortlinks WHERE user_uid = $1 AND deleted = false")
 	if err != nil {
 		return r.log.Wrap(err, "prepare getShortlinksByUserStmt")
 	}

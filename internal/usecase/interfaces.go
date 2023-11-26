@@ -26,4 +26,5 @@ type Shortener interface {
 	GetShortlink(ctx context.Context, linkUID string) (*entity.Shortlink, error)
 	GetUserShortlink(ctx context.Context, userUID, linkUID string) (*entity.Shortlink, error)
 	ListUserShortlinks(ctx context.Context, userUID string) ([]*entity.Shortlink, error)
+	DeleteUserShortlinks(ctx context.Context, userUID string, linkUIDs []string) error
 }
