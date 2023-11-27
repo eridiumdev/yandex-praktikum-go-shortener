@@ -72,6 +72,7 @@ func TestCreateShortlink(t *testing.T) {
 
 			body, resp, err := sendRequest(srv, req)
 			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
 
@@ -148,6 +149,7 @@ func TestShortenLink(t *testing.T) {
 
 			body, resp, err := sendRequest(srv, req)
 			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
 
@@ -233,6 +235,7 @@ func TestGetShortlink(t *testing.T) {
 
 			_, resp, err := sendRequest(srv, req)
 			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
 
@@ -278,8 +281,6 @@ func sendRequest(srv http.Handler, req *http.Request) ([]byte, *http.Response, e
 	if err != nil {
 		return nil, nil, err
 	}
-
-	err = w.Result().Body.Close()
 
 	return body, w.Result(), err
 }

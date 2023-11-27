@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -43,22 +42,13 @@ func NewShortenerController(router *gin.Engine, shortener usecase.Shortener, log
 func (ct *ShortenerController) ping(c *gin.Context) {
 	ctx := c
 
-	select {
-	case <-ctx.Done():
-		ct.log.Info(c).Msg("donezo")
+	err := ct.shortener.Ping(ctx)
+	if err != nil {
+		c.String(ct.errorStatus(err), err.Error())
 		return
-	case <-time.After(time.Second * 3):
-		ct.log.Info(c).Msg("slept")
 	}
 
-	//err := ct.shortener.Ping(c)
-	//if err != nil {
-	//	c.Status(ct.errorStatus(err))
-	//	c.String(err.Error())
-	//return
-	//}
-
-	c.String(http.StatusOK, "MKAY")
+	c.Status(http.StatusOK)
 }
 
 func (ct *ShortenerController) createShortlink(c *gin.Context) {

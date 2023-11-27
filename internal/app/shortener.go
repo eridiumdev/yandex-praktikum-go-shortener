@@ -33,7 +33,7 @@ func NewShortener(ctx context.Context, cfg *config.Config, log *logger.Logger) (
 	handler.ContextWithFallback = true
 
 	handler.Use(gin.Recovery())
-	handler.Use(gzip.Gzip(gzip.BestSpeed))
+	handler.Use(gzip.Gzip(gzip.BestSpeed, gzip.WithDecompressFn(gzip.DefaultDecompressHandle)))
 	handler.Use(middleware.RequestID(log))
 	handler.Use(middleware.Logger(log.SubLogger("http_requests")))
 
@@ -45,9 +45,6 @@ func NewShortener(ctx context.Context, cfg *config.Config, log *logger.Logger) (
 	authMiddleware := middleware.CookieAuth(middleware.CookieAuthConfig{
 		Cipher: cipher,
 	}, log)
-	if err != nil {
-		return nil, log.Wrap(err, "init auth middleware")
-	}
 
 	handler.Use(authMiddleware)
 
