@@ -73,7 +73,7 @@ func (ct *ShortenerController) createShortlink(c *gin.Context) {
 	case err == nil:
 		c.String(http.StatusCreated, link.Short)
 	case errors.Is(err, repository.ErrURLConflict):
-		c.Status(http.StatusConflict)
+		c.String(http.StatusConflict, link.Short)
 	default:
 		ct.log.Error(ctx, err).Msg("create shortlink")
 		c.String(ct.errorStatus(err), err.Error())
