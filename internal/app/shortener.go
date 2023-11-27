@@ -34,8 +34,6 @@ func NewShortener(ctx context.Context, cfg *config.Config, log *logger.Logger) (
 
 	handler.Use(gin.Recovery())
 	handler.Use(gzip.Gzip(gzip.BestSpeed, gzip.WithDecompressFn(gzip.DefaultDecompressHandle)))
-	handler.Use(middleware.RequestID(log))
-	handler.Use(middleware.Logger(log.SubLogger("http_requests")))
 
 	cipher, err := crypto.NewAES256(cfg.App.AuthSecret, log)
 	if err != nil {
@@ -47,6 +45,9 @@ func NewShortener(ctx context.Context, cfg *config.Config, log *logger.Logger) (
 	}, log)
 
 	handler.Use(authMiddleware)
+
+	handler.Use(middleware.RequestID(log))
+	handler.Use(middleware.Logger(log.SubLogger("http_requests")))
 
 	handler.Handler()
 	app.server = &nethttp.Server{
