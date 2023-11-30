@@ -20,6 +20,7 @@ import (
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/entity"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/crypto"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository/batch"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/usecase"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/pkg/logger"
 )
@@ -251,10 +252,11 @@ func prepareController(handler *gin.Engine, repo repository.ShortlinkRepo) {
 	if repo == nil {
 		repo = repository.NewInMemShortlinkRepo(nil)
 	}
+	batchProc := batch.NewProcessor(context.Background(), repo, log)
 	uc := usecase.NewShortener(config.Shortener{
 		BaseURL:       "http://127.0.0.1",
 		DefaultLength: 5,
-	}, repo, log)
+	}, repo, batchProc, log)
 
 	NewShortenerController(handler, uc, log)
 }

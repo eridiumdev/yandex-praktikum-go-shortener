@@ -13,6 +13,7 @@ import (
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/controller/http/middleware"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/crypto"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository/batch"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/storage"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/usecase"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/pkg/logger"
@@ -81,7 +82,9 @@ func NewShortener(ctx context.Context, cfg *config.Config, log *logger.Logger) (
 	}
 	log.Info(ctx).Msgf("Restore from backup complete")
 
-	shortenerUC := usecase.NewShortener(cfg.Shortener, shortlinkRepo, log.SubLogger("shortener_uc"))
+	batchProcessor := batch.NewProcessor(ctx, shortlinkRepo, log.SubLogger("batch_processor"))
+
+	shortenerUC := usecase.NewShortener(cfg.Shortener, shortlinkRepo, batchProcessor, log.SubLogger("shortener_uc"))
 	http.NewShortenerController(handler, shortenerUC, log.SubLogger("shortener_controller"))
 
 	return app, nil
