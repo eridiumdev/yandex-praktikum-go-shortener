@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"sync"
 
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/entity"
@@ -106,6 +107,22 @@ func (r *InMemShortlinkRepo) GetShortlinks(ctx context.Context, userUID string) 
 		links = append(links, link)
 	}
 	return links, nil
+}
+
+func (r *InMemShortlinkRepo) DeleteShortlinks(ctx context.Context, userUID string, linkUIDs []string) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if _, ok := r.links[userUID]; !ok {
+		return nil
+	}
+
+	for uid := range r.links[userUID] {
+		if slices.Contains(linkUIDs, uid) {
+			delete(r.links[userUID], uid)
+		}
+	}
+	return nil
 }
 
 func (r *InMemShortlinkRepo) Backup(ctx context.Context) error {

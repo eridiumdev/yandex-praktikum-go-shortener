@@ -49,10 +49,6 @@ func CookieAuth(cfg CookieAuthConfig, log *logger.Logger) gin.HandlerFunc {
 		// Add token to request context
 		c.Set(string(entity.AuthTokenCtxKey), token)
 
-		// Go to next middleware/handler
-		c.Next()
-
-		// Post-processing
 		// Encrypt the token
 		encrypted, err := cfg.Cipher.Encrypt(c, token)
 		if err != nil {
@@ -63,6 +59,9 @@ func CookieAuth(cfg CookieAuthConfig, log *logger.Logger) gin.HandlerFunc {
 
 		// Add encrypted token as a cookie
 		c.SetCookie(CookieAuthName, encrypted, int(CookieAuthAge.Seconds()), "", "", false, false)
+
+		// Go to next middleware/handler
+		c.Next()
 	}
 }
 

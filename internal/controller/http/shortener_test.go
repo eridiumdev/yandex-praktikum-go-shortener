@@ -20,6 +20,7 @@ import (
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/entity"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/crypto"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository/batch"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/usecase"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/pkg/logger"
 )
@@ -72,6 +73,7 @@ func TestCreateShortlink(t *testing.T) {
 
 			body, resp, err := sendRequest(srv, req)
 			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
 
@@ -148,6 +150,7 @@ func TestShortenLink(t *testing.T) {
 
 			body, resp, err := sendRequest(srv, req)
 			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
 
@@ -233,6 +236,7 @@ func TestGetShortlink(t *testing.T) {
 
 			_, resp, err := sendRequest(srv, req)
 			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
 
@@ -248,10 +252,11 @@ func prepareController(handler *gin.Engine, repo repository.ShortlinkRepo) {
 	if repo == nil {
 		repo = repository.NewInMemShortlinkRepo(nil)
 	}
+	batchProc := batch.NewProcessor(context.Background(), repo, log)
 	uc := usecase.NewShortener(config.Shortener{
 		BaseURL:       "http://127.0.0.1",
 		DefaultLength: 5,
-	}, repo, log)
+	}, repo, batchProc, log)
 
 	NewShortenerController(handler, uc, log)
 }
@@ -278,8 +283,6 @@ func sendRequest(srv http.Handler, req *http.Request) ([]byte, *http.Response, e
 	if err != nil {
 		return nil, nil, err
 	}
-
-	err = w.Result().Body.Close()
 
 	return body, w.Result(), err
 }

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -35,6 +34,7 @@ func NewShortenerController(router *gin.Engine, shortener usecase.Shortener, log
 	router.POST("/api/shorten", c.shortenLink)
 	router.POST("/api/shorten/batch", c.shortenLinksBatch)
 	router.GET("/api/user/urls", c.listShortlinks)
+	router.DELETE("/api/user/urls", c.deleteShortlinks)
 
 	return c
 }
@@ -42,22 +42,13 @@ func NewShortenerController(router *gin.Engine, shortener usecase.Shortener, log
 func (ct *ShortenerController) ping(c *gin.Context) {
 	ctx := c
 
-	select {
-	case <-ctx.Done():
-		ct.log.Info(c).Msg("donezo")
+	err := ct.shortener.Ping(ctx)
+	if err != nil {
+		c.String(ct.errorStatus(err), err.Error())
 		return
-	case <-time.After(time.Second * 3):
-		ct.log.Info(c).Msg("slept")
 	}
 
-	//err := ct.shortener.Ping(c)
-	//if err != nil {
-	//	c.Status(ct.errorStatus(err))
-	//	c.String(err.Error())
-	//return
-	//}
-
-	c.String(http.StatusOK, "MKAY")
+	c.Status(http.StatusOK)
 }
 
 func (ct *ShortenerController) createShortlink(c *gin.Context) {
@@ -82,7 +73,7 @@ func (ct *ShortenerController) createShortlink(c *gin.Context) {
 	case err == nil:
 		c.String(http.StatusCreated, link.Short)
 	case errors.Is(err, repository.ErrURLConflict):
-		c.Status(http.StatusConflict)
+		c.String(http.StatusConflict, link.Short)
 	default:
 		ct.log.Error(ctx, err).Msg("create shortlink")
 		c.String(ct.errorStatus(err), err.Error())
@@ -217,6 +208,10 @@ func (ct *ShortenerController) getShortlink(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 		return
 	}
+	if link.Deleted {
+		c.Status(http.StatusGone)
+		return
+	}
 
 	c.Header("Location", link.Long)
 	c.Status(http.StatusTemporaryRedirect)
@@ -259,6 +254,36 @@ func (ct *ShortenerController) listShortlinks(c *gin.Context) {
 		})
 	}
 	c.JSON(http.StatusOK, result)
+}
+
+type (
+	deleteShortlinksRequest []string
+)
+
+func (ct *ShortenerController) deleteShortlinks(c *gin.Context) {
+	ctx := c
+
+	userUID, err := ct.userUID(ctx)
+	if err != nil {
+		c.Status(http.StatusUnauthorized)
+		return
+	}
+
+	var req deleteShortlinksRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ct.log.Error(ctx, err).Msg("parse JSON request")
+		c.String(http.StatusBadRequest, err.Error())
+		return
+	}
+
+	err = ct.shortener.DeleteUserShortlinks(ctx, userUID, req)
+	if err != nil {
+		ct.log.Error(ctx, err).Msg("delete user shortlinks")
+		c.String(ct.errorStatus(err), err.Error())
+		return
+	}
+
+	c.Status(http.StatusAccepted)
 }
 
 func (ct *ShortenerController) userUID(c context.Context) (string, error) {

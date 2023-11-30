@@ -101,5 +101,7 @@ type hook struct {
 func (h hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	ctx := e.GetCtx()
 	key, val := h.fn(ctx)
-	e.Str(key, val)
+	if key != "" {
+		e.Str(key, val)
+	}
 }

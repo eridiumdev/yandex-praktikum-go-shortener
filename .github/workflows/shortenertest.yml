@@ -18,7 +18,7 @@ jobs:
 
   shortenertest:
     runs-on: ubuntu-latest
-    container: golang:1.19
+    container: golang:1.21
     needs: branchtest
 
     services:
@@ -442,7 +442,8 @@ jobs:
           github.head_ref == 'iter24'
         run: |
           shortenertest -test.v -test.run=^TestIteration14$ \
-              -binary-path=cmd/shortener/shortener
+              -binary-path=cmd/shortener/shortener \
+              -database-dsn='postgres://postgres:postgres@postgres:5432/praktikum?sslmode=disable'
 
       - name: "Code increment #14 (race detection)"
         if: |

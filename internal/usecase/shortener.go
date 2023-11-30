@@ -11,6 +11,7 @@ import (
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/config"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/entity"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository"
+	"github.com/eridiumdev/yandex-praktikum-go-shortener/internal/infrastructure/repository/batch"
 	"github.com/eridiumdev/yandex-praktikum-go-shortener/pkg/logger"
 )
 
@@ -19,12 +20,14 @@ type ShortenerUC struct {
 	defaultLength int
 	alphabet      []rune
 
-	repo repository.ShortlinkRepo
-	rng  *rand.Rand
-	log  *logger.Logger
+	repo           repository.ShortlinkRepo
+	batchProcessor batch.ShortlinkBatchProcessor
+
+	rng *rand.Rand
+	log *logger.Logger
 }
 
-func NewShortener(cfg config.Shortener, repo repository.ShortlinkRepo, log *logger.Logger) *ShortenerUC {
+func NewShortener(cfg config.Shortener, repo repository.ShortlinkRepo, batchProcessor batch.ShortlinkBatchProcessor, log *logger.Logger) *ShortenerUC {
 	var alphabet []rune
 
 	for c := '0'; c < '9'; c++ {
@@ -38,12 +41,13 @@ func NewShortener(cfg config.Shortener, repo repository.ShortlinkRepo, log *logg
 	}
 
 	return &ShortenerUC{
-		baseURL:       strings.TrimRight(cfg.BaseURL, "/") + "/",
-		defaultLength: cfg.DefaultLength,
-		alphabet:      alphabet,
-		repo:          repo,
-		rng:           rand.New(rand.NewSource(time.Now().UnixNano())),
-		log:           log,
+		baseURL:        strings.TrimRight(cfg.BaseURL, "/") + "/",
+		defaultLength:  cfg.DefaultLength,
+		alphabet:       alphabet,
+		repo:           repo,
+		batchProcessor: batchProcessor,
+		rng:            rand.New(rand.NewSource(time.Now().UnixNano())),
+		log:            log,
 	}
 }
 
@@ -211,4 +215,10 @@ func (uc *ShortenerUC) GetUserShortlink(ctx context.Context, userUID, linkUID st
 
 func (uc *ShortenerUC) ListUserShortlinks(ctx context.Context, userUID string) ([]*entity.Shortlink, error) {
 	return uc.repo.GetShortlinks(ctx, userUID)
+}
+
+func (uc *ShortenerUC) DeleteUserShortlinks(ctx context.Context, userUID string, linkUIDs []string) error {
+	go uc.batchProcessor.BatchDeleteShortlinks(context.WithoutCancel(ctx), userUID, linkUIDs)
+
+	return nil
 }
